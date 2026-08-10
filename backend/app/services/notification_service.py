@@ -1869,6 +1869,35 @@ class NotificationService:
             variables=variables,
         )
 
+    async def on_location_ha_sensor_alert(
+        self,
+        location_id: int,
+        location_name: str,
+        sensor_name: str,
+        state: str,
+        db: AsyncSession,
+    ):
+        providers = await self._get_providers_for_event(db, "on_ha_sensor_alert", None)
+        if not providers:
+            return
+
+        variables = {
+            "location": location_name,
+            "sensor": sensor_name,
+            "state": state,
+        }
+
+        title, message = await self._build_message_from_template(db, "location_ha_sensor_alert", variables)
+        await self._send_to_providers(
+            providers,
+            title,
+            message,
+            db,
+            "location_ha_sensor_alert",
+            force_immediate=True,
+            variables=variables,
+        )
+
     async def on_first_layer_complete(
         self,
         printer_id: int,

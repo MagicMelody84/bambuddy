@@ -268,6 +268,7 @@ async def init_db():
         library,
         local_preset,
         location,
+        location_ha_sensor,
         long_lived_token,
         maintenance,
         notification,

@@ -4471,6 +4471,7 @@ export default {
     edit: 'Edit Location',
     name: 'Name',
     spools: 'Spools',
+    sensors: 'Sensors',
     empty: 'No storage locations yet. Create your first shelf or drawer.',
     manage: 'Locations',
     createPlaceholder: 'e.g. Shelf A, Drawer 1',
@@ -4483,6 +4484,8 @@ export default {
     deleteBlocked: 'Remove all spools from this location before deleting',
     confirmDelete: 'Delete "{{name}}"?',
     confirmDeleteMessage: 'This location will be removed from the catalog. Spools must be moved first.',
+    confirmDeleteMessageWithSensors:
+      'This location will be removed from the catalog. Spools must be moved first. Connected sensors will also be deleted.',
   },
 
   // Inventory
@@ -4649,6 +4652,9 @@ export default {
     spoolName: 'Spool',
     costPerKg: 'Cost per kg',
     storageLocation: 'Storage Location',
+    temperature: 'Temperature',
+    humidity: 'Humidity',
+    battery: 'Battery',
     storageLocationPlaceholder: 'e.g. Shelf A, Drawer 1',
     openInInventory: 'Open in Inventory',
     measuredWeightError: 'Measured weight must be between {{min}}g and {{max}}g.',
@@ -5712,7 +5718,7 @@ export default {
       on: 'On',
       off: 'Off',
     },
-    sectionTitle: 'Home Assistant Sensors',
+    sectionTitle: 'Home Assistant Sensors (Printers)',
     add: 'Add Sensor',
     addTitle: 'Add Home Assistant Sensor',
     editTitle: 'Edit Home Assistant Sensor',
@@ -5745,6 +5751,47 @@ export default {
       nameRequired: 'Enter a display name',
       printerRequired: 'Pick a printer',
       alertRequired: 'Set an alert condition first',
+    },
+  },
+  locationHaSensors: {
+    sectionTitle: 'Home Assistant Sensors (Storage Locations)',
+    add: 'Add Sensor',
+    addTitle: 'Add Home Assistant Sensor',
+    editTitle: 'Edit Home Assistant Sensor',
+    empty: 'No sensors yet. Bind a temperature or humidity sensor from Home Assistant to show it on the filament card.',
+    unknownLocation: 'Unknown location',
+    location: 'Storage Location',
+    showOnCard: 'Show on filament card',
+    overwriteConfirm: {
+      title: 'Replace existing sensor?',
+      messageTemperature: '"{{location}}" already has a temperature sensor bound: {{name}}. Continuing will replace it.',
+      messageHumidity: '"{{location}}" already has a humidity sensor bound: {{name}}. Continuing will replace it.',
+      messageBattery: '"{{location}}" already has a battery sensor bound: {{name}}. Continuing will replace it.',
+    },
+    autoAdd: {
+      confirmTitle: 'Add the other sensors too?',
+      confirmMessage: 'Home Assistant also has {{names}} for this location. Bind them as well?',
+      added: 'Also added: {{names}}',
+      noneFound: 'No matching temperature, humidity, or battery sensors found for this location.',
+    },
+    defaults: {
+      buttonLabel: 'Auto-add defaults',
+      title: 'Default Values for Automatic Sensor Adding',
+      description: 'These values are used when a temperature, humidity, or battery sensor is bound automatically alongside the first sensor for a location.',
+      saved: 'Defaults saved',
+    },
+    deleteAllConfirm: {
+      title: 'Delete all sensors?',
+      message: 'This removes all {{count}} sensors bound to "{{location}}". This cannot be undone.',
+    },
+    currentlyBound: 'Currently bound: {{entity}}',
+    error: {
+      locationRequired: 'Pick a storage location',
+    },
+    toast: {
+      created: 'Sensor added',
+      updated: 'Sensor saved',
+      deleted: 'Sensor removed',
     },
   },
   smartPlugs: {
