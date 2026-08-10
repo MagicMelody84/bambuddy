@@ -5698,6 +5698,7 @@ export default {
       buttonLabel: 'Otomatik ekleme varsayılanları',
       title: 'Sensörlerin Otomatik Eklenmesi İçin Varsayılan Değerler',
       description: 'Bu değerler, bir konumun ilk sensörüyle birlikte bir sıcaklık, nem veya pil sensörü otomatik olarak bağlandığında kullanılır.',
+      colorizeValues: 'Sensör değerlerini uyarı eşiklerine göre renklendir',
       saved: 'Varsayılanlar kaydedildi',
     },
     deleteAllConfirm: {

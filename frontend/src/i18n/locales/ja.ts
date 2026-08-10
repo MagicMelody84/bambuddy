@@ -5735,6 +5735,7 @@ export default {
       buttonLabel: '自動追加のデフォルト値',
       title: 'センサー自動追加のデフォルト値',
       description: 'この値は、保管場所の最初のセンサーと一緒に温度・湿度・バッテリーセンサーが自動的に連携される際に使用されます。',
+      colorizeValues: 'アラートしきい値に応じてセンサー値を色分け表示',
       saved: 'デフォルト値を保存しました',
     },
     deleteAllConfirm: {

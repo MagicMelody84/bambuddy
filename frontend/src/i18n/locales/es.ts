@@ -5742,6 +5742,7 @@ export default {
       buttonLabel: 'Valores predeterminados para añadir automáticamente',
       title: 'Valores predeterminados para añadir sensores automáticamente',
       description: 'Estos valores se usan cuando un sensor de temperatura, humedad o batería se vincula automáticamente junto con el primer sensor de una ubicación.',
+      colorizeValues: 'Colorear los valores de los sensores según sus umbrales de alerta',
       saved: 'Valores predeterminados guardados',
     },
     deleteAllConfirm: {

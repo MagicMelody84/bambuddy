@@ -5724,6 +5724,7 @@ export default {
       buttonLabel: 'Valeurs par défaut pour l\'ajout automatique',
       title: 'Valeurs par défaut pour l\'ajout automatique de capteurs',
       description: 'Ces valeurs sont utilisées lorsqu\'un capteur de température, d\'humidité ou de batterie est lié automatiquement avec le premier capteur d\'un emplacement.',
+      colorizeValues: "Colorer les valeurs des capteurs selon leurs seuils d'alerte",
       saved: 'Valeurs par défaut enregistrées',
     },
     deleteAllConfirm: {

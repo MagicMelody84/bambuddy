@@ -50,3 +50,22 @@ export function saveLocationSensorDefaults(defaults: LocationSensorDefaults) {
     return;
   }
 }
+
+const COLORIZE_VALUES_STORAGE_KEY = 'bambuddy-location-sensor-colorize-values';
+
+export function loadLocationSensorColorizeValues(): boolean {
+  try {
+    const stored = localStorage.getItem(COLORIZE_VALUES_STORAGE_KEY);
+    return stored ? stored === 'true' : true;
+  } catch {
+    return true;
+  }
+}
+
+export function saveLocationSensorColorizeValues(value: boolean) {
+  try {
+    localStorage.setItem(COLORIZE_VALUES_STORAGE_KEY, String(value));
+  } catch {
+    return;
+  }
+}

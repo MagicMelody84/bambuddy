@@ -5723,6 +5723,7 @@ export default {
       buttonLabel: 'Padrões para adição automática',
       title: 'Valores padrão para adição automática de sensores',
       description: 'Esses valores são usados quando um sensor de temperatura, umidade ou bateria é vinculado automaticamente junto com o primeiro sensor de um local.',
+      colorizeValues: 'Colorir os valores dos sensores de acordo com seus limites de alerta',
       saved: 'Padrões salvos',
     },
     deleteAllConfirm: {

@@ -5723,6 +5723,7 @@ export default {
       buttonLabel: '自動新增預設值',
       title: '感測器自動新增預設值',
       description: '當某個位置綁定第一個感測器時，若自動新增溫度、濕度或電池感測器，將使用這些預設值。',
+      colorizeValues: '依警示閾值為感測器數值著色',
       saved: '預設值已儲存',
     },
     deleteAllConfirm: {

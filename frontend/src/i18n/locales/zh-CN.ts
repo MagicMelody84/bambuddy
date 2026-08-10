@@ -5723,6 +5723,7 @@ export default {
       buttonLabel: '自动添加默认值',
       title: '传感器自动添加默认值',
       description: '当某个位置绑定第一个传感器时，若自动添加温度、湿度或电池传感器，将使用这些默认值。',
+      colorizeValues: '根据警报阈值为传感器数值着色',
       saved: '默认值已保存',
     },
     deleteAllConfirm: {

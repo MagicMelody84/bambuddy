@@ -11,6 +11,7 @@ import { fleetAudience, sponsorHref } from '../utils/fleetAudience';
 import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPresets';
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
+import { loadLocationSensorColorizeValues } from '../utils/locationSensorDefaults';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
 import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
@@ -201,7 +202,9 @@ function describeLocationSensorValue(
 ): string | null {
   if (sensor.last_state === null) return null;
   if (sensor.kind === 'numeric') {
-    return sensor.unit ? `${sensor.last_state} ${sensor.unit}` : sensor.last_state;
+    const value = Number(sensor.last_state);
+    const formatted = Number.isNaN(value) ? sensor.last_state : value.toFixed(2);
+    return sensor.unit ? `${formatted} ${sensor.unit}` : formatted;
   }
   const labels = LOCATION_SENSOR_BINARY_LABELS[sensor.device_class ?? ''];
   const key = labels ? labels[sensor.last_state === 'on' ? 'on' : 'off'] : sensor.last_state;
@@ -252,6 +255,9 @@ export function SettingsPage() {
   const [showLocationHASensorModal, setShowLocationHASensorModal] = useState(false);
   const [editingLocationHASensor, setEditingLocationHASensor] = useState<LocationHASensor | null>(null);
   const [showLocationSensorDefaultsModal, setShowLocationSensorDefaultsModal] = useState(false);
+  const [colorizeLocationSensorValues, setColorizeLocationSensorValues] = useState(() =>
+    loadLocationSensorColorizeValues()
+  );
   const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
     locationName: string;
     sensorIds: number[];
@@ -3960,7 +3966,7 @@ export function SettingsPage() {
                           {sensors.map((sensor) => {
                             const Icon = iconForSensor(sensor);
                             const value = describeLocationSensorValue(sensor, t);
-                            const alertStatus = locationSensorAlertStatus(sensor);
+                            const alertStatus = colorizeLocationSensorValues ? locationSensorAlertStatus(sensor) : null;
                             const valueColor =
                               alertStatus === 'alert'
                                 ? 'text-red-400'
@@ -3968,13 +3974,11 @@ export function SettingsPage() {
                                   ? 'text-green-400'
                                   : 'text-white';
                             return (
-                              <div key={sensor.id} className="flex items-center gap-1.5 min-w-0 text-xs text-bambu-gray">
-                                <Icon className="w-3.5 h-3.5 shrink-0" />
-                                <span className="truncate">
-                                  {value && <span className={valueColor}>{value}</span>}
-                                  {value && ' - '}
-                                  {sensor.name}
-                                </span>
+                              <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
+                                <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
+                                {value && <span className={`${valueColor} shrink-0 w-[52px]`}>{value}</span>}
+                                {value && <span className="shrink-0 mr-1.5">-</span>}
+                                <span className="truncate mr-1.5">{sensor.name}</span>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -6189,7 +6193,12 @@ export function SettingsPage() {
       )}
 
       {showLocationSensorDefaultsModal && (
-        <LocationSensorDefaultsModal onClose={() => setShowLocationSensorDefaultsModal(false)} />
+        <LocationSensorDefaultsModal
+          onClose={() => {
+            setShowLocationSensorDefaultsModal(false);
+            setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
+          }}
+        />
       )}
 
       {deleteLocationSensorsTarget && (

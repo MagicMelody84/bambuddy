@@ -5784,6 +5784,7 @@ export default {
       buttonLabel: 'Auto-add defaults',
       title: 'Default Values for Automatic Sensor Adding',
       description: 'These values are used when a temperature, humidity, or battery sensor is bound automatically alongside the first sensor for a location.',
+      colorizeValues: 'Colorize sensor values against their alert thresholds',
       saved: 'Defaults saved',
     },
     deleteAllConfirm: {

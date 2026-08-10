@@ -5723,6 +5723,7 @@ export default {
       buttonLabel: 'Valori predefiniti per l\'aggiunta automatica',
       title: 'Valori predefiniti per l\'aggiunta automatica dei sensori',
       description: 'Questi valori vengono usati quando un sensore di temperatura, umidità o batteria viene collegato automaticamente insieme al primo sensore di una posizione.',
+      colorizeValues: 'Colora i valori dei sensori in base alle relative soglie di allarme',
       saved: 'Valori predefiniti salvati',
     },
     deleteAllConfirm: {

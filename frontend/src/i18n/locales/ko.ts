@@ -5464,6 +5464,7 @@ export default {
       buttonLabel: '자동 추가 기본값',
       title: '센서 자동 추가 기본값',
       description: '이 값은 위치의 첫 번째 센서와 함께 온도, 습도 또는 배터리 센서가 자동으로 연결될 때 사용됩니다.',
+      colorizeValues: '경보 임계값에 따라 센서 값에 색상 표시',
       saved: '기본값이 저장되었습니다',
     },
     deleteAllConfirm: {

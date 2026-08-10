@@ -5734,6 +5734,7 @@ export default {
       buttonLabel: 'Standardwerte für automatisches Hinzufügen',
       title: 'Standardwerte für automatisches Hinzufügen',
       description: 'Diese Werte werden verwendet, wenn ein Temperatur-, Luftfeuchtigkeits- oder Batteriesensor automatisch zusammen mit dem ersten Sensor eines Lagerorts gebunden wird.',
+      colorizeValues: 'Sensorwerte anhand ihrer Alarmschwellen farbig darstellen',
       saved: 'Standardwerte gespeichert',
     },
     deleteAllConfirm: {

@@ -4,7 +4,9 @@ import { Battery, Droplets, Save, Settings2, Thermometer, X } from 'lucide-react
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
 import {
+  loadLocationSensorColorizeValues,
   loadLocationSensorDefaults,
+  saveLocationSensorColorizeValues,
   saveLocationSensorDefaults,
   type LocationSensorCategory,
   type LocationSensorCategoryDefaults,
@@ -120,6 +122,7 @@ export function LocationSensorDefaultsModal({ onClose }: Props) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [defaults, setDefaults] = useState<LocationSensorDefaults>(() => loadLocationSensorDefaults());
+  const [colorizeValues, setColorizeValues] = useState(() => loadLocationSensorColorizeValues());
 
   const updateCategory = (category: LocationSensorCategory, patch: Partial<LocationSensorCategoryDefaults>) => {
     setDefaults((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
@@ -128,6 +131,7 @@ export function LocationSensorDefaultsModal({ onClose }: Props) {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
+    saveLocationSensorColorizeValues(colorizeValues);
     showToast(t('locationHaSensors.defaults.saved'), 'success');
     onClose();
   };
@@ -152,6 +156,16 @@ export function LocationSensorDefaultsModal({ onClose }: Props) {
 
         <form onSubmit={handleSave} className="p-6 space-y-4">
           <p className="text-xs text-bambu-gray">{t('locationHaSensors.defaults.description')}</p>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={colorizeValues}
+              onChange={(e) => setColorizeValues(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm text-white">{t('locationHaSensors.defaults.colorizeValues')}</span>
+          </label>
 
           <div className="space-y-3">
             <CategorySection
