@@ -5780,12 +5780,30 @@ export default {
       added: 'Also added: {{names}}',
       noneFound: 'No matching temperature, humidity, or battery sensors found for this location.',
     },
-    defaults: {
-      buttonLabel: 'Auto-add defaults',
-      title: 'Default Values for Automatic Sensor Adding',
+    options: {
+      buttonLabel: 'Sensor options',
+      title: 'Location Sensor Options',
       description: 'These values are used when a temperature, humidity, or battery sensor is bound automatically alongside the first sensor for a location.',
       colorizeValues: 'Colorize sensor values against their alert thresholds',
-      saved: 'Defaults saved',
+      aboveColor: 'Above threshold color',
+      belowColor: 'Below threshold color',
+      colors: {
+        red: 'Red',
+        orange: 'Orange',
+        yellow: 'Yellow',
+        blue: 'Blue',
+        purple: 'Purple',
+        pink: 'Pink',
+      },
+      saved: 'Options saved',
+      reset: 'Reset',
+      resetConfirm: {
+        title: 'Reset all existing location sensors?',
+        message:
+          'This overwrites the alert thresholds, notifications, and card visibility of every existing storage-location temperature, humidity, and battery sensor with the values configured above — printer sensors are not affected. This cannot be undone.',
+      },
+      resetDone: 'Applied to {{count}} location sensors',
+      resetFailed: 'Failed to reset location sensors',
     },
     deleteAllConfirm: {
       title: 'Delete all sensors?',

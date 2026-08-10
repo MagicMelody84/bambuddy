@@ -69,3 +69,56 @@ export function saveLocationSensorColorizeValues(value: boolean) {
     return;
   }
 }
+
+export const LOCATION_SENSOR_ALERT_COLORS = ['red', 'orange', 'yellow', 'blue', 'purple', 'pink'] as const;
+export type LocationSensorAlertColor = (typeof LOCATION_SENSOR_ALERT_COLORS)[number];
+
+export const LOCATION_SENSOR_ALERT_COLOR_CLASSES: Record<LocationSensorAlertColor, string> = {
+  red: 'text-red-400',
+  orange: 'text-orange-400',
+  yellow: 'text-yellow-400',
+  blue: 'text-blue-400',
+  purple: 'text-purple-400',
+  pink: 'text-pink-400',
+};
+
+const ALERT_ABOVE_COLOR_STORAGE_KEY = 'bambuddy-location-sensor-alert-above-color';
+const ALERT_BELOW_COLOR_STORAGE_KEY = 'bambuddy-location-sensor-alert-below-color';
+
+function isAlertColor(value: string | null): value is LocationSensorAlertColor {
+  return !!value && (LOCATION_SENSOR_ALERT_COLORS as readonly string[]).includes(value);
+}
+
+export function loadLocationSensorAlertAboveColor(): LocationSensorAlertColor {
+  try {
+    const stored = localStorage.getItem(ALERT_ABOVE_COLOR_STORAGE_KEY);
+    return isAlertColor(stored) ? stored : 'red';
+  } catch {
+    return 'red';
+  }
+}
+
+export function saveLocationSensorAlertAboveColor(color: LocationSensorAlertColor) {
+  try {
+    localStorage.setItem(ALERT_ABOVE_COLOR_STORAGE_KEY, color);
+  } catch {
+    return;
+  }
+}
+
+export function loadLocationSensorAlertBelowColor(): LocationSensorAlertColor {
+  try {
+    const stored = localStorage.getItem(ALERT_BELOW_COLOR_STORAGE_KEY);
+    return isAlertColor(stored) ? stored : 'blue';
+  } catch {
+    return 'blue';
+  }
+}
+
+export function saveLocationSensorAlertBelowColor(color: LocationSensorAlertColor) {
+  try {
+    localStorage.setItem(ALERT_BELOW_COLOR_STORAGE_KEY, color);
+  } catch {
+    return;
+  }
+}

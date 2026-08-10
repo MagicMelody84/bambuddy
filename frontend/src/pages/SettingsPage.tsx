@@ -11,7 +11,12 @@ import { fleetAudience, sponsorHref } from '../utils/fleetAudience';
 import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPresets';
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
-import { loadLocationSensorColorizeValues } from '../utils/locationSensorDefaults';
+import {
+  LOCATION_SENSOR_ALERT_COLOR_CLASSES,
+  loadLocationSensorAlertAboveColor,
+  loadLocationSensorAlertBelowColor,
+  loadLocationSensorColorizeValues,
+} from '../utils/locationSensorDefaults';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
 import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
@@ -26,7 +31,7 @@ import { SmartPlugCard } from '../components/SmartPlugCard';
 import { AddSmartPlugModal } from '../components/AddSmartPlugModal';
 import { HASensorModal } from '../components/HASensorModal';
 import { LocationHASensorModal } from '../components/LocationHASensorModal';
-import { LocationSensorDefaultsModal } from '../components/LocationSensorDefaultsModal';
+import { LocationSensorOptionsModal } from '../components/LocationSensorOptionsModal';
 import { NotificationProviderCard } from '../components/NotificationProviderCard';
 import { AddNotificationModal } from '../components/AddNotificationModal';
 import { NotificationTemplateEditor } from '../components/NotificationTemplateEditor';
@@ -211,19 +216,18 @@ function describeLocationSensorValue(
   return t(`haSensors.states.${key}`, { defaultValue: key });
 }
 
-function locationSensorAlertStatus(sensor: LocationHASensor): 'alert' | 'ok' | null {
+function locationSensorAlertStatus(sensor: LocationHASensor): 'above' | 'below' | 'ok' | null {
   if (sensor.last_state === null) return null;
   if (sensor.kind === 'numeric') {
     if (sensor.alert_above === null && sensor.alert_below === null) return null;
     const value = Number(sensor.last_state);
     if (Number.isNaN(value)) return null;
-    const alerting =
-      (sensor.alert_above !== null && value > sensor.alert_above) ||
-      (sensor.alert_below !== null && value < sensor.alert_below);
-    return alerting ? 'alert' : 'ok';
+    if (sensor.alert_above !== null && value > sensor.alert_above) return 'above';
+    if (sensor.alert_below !== null && value < sensor.alert_below) return 'below';
+    return 'ok';
   }
   if (sensor.alert_state === null) return null;
-  return sensor.last_state.toLowerCase() === sensor.alert_state ? 'alert' : 'ok';
+  return sensor.last_state.toLowerCase() === sensor.alert_state ? 'above' : 'ok';
 }
 
 export function SettingsPage() {
@@ -254,10 +258,12 @@ export function SettingsPage() {
   const [editingHASensor, setEditingHASensor] = useState<PrinterHASensor | null>(null);
   const [showLocationHASensorModal, setShowLocationHASensorModal] = useState(false);
   const [editingLocationHASensor, setEditingLocationHASensor] = useState<LocationHASensor | null>(null);
-  const [showLocationSensorDefaultsModal, setShowLocationSensorDefaultsModal] = useState(false);
+  const [showLocationSensorOptionsModal, setShowLocationSensorOptionsModal] = useState(false);
   const [colorizeLocationSensorValues, setColorizeLocationSensorValues] = useState(() =>
     loadLocationSensorColorizeValues()
   );
+  const [locationSensorAboveColor, setLocationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [locationSensorBelowColor, setLocationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
   const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
     locationName: string;
     sensorIds: number[];
@@ -3893,10 +3899,10 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowLocationSensorDefaultsModal(true)}
+                  onClick={() => setShowLocationSensorOptionsModal(true)}
                   className="p-2 rounded-lg bg-bambu-dark-tertiary hover:bg-bambu-gray-dark text-white transition-colors"
-                  title={t('locationHaSensors.defaults.buttonLabel')}
-                  aria-label={t('locationHaSensors.defaults.buttonLabel')}
+                  title={t('locationHaSensors.options.buttonLabel')}
+                  aria-label={t('locationHaSensors.options.buttonLabel')}
                 >
                   <Cog className="w-4 h-4" />
                 </button>
@@ -3968,11 +3974,13 @@ export function SettingsPage() {
                             const value = describeLocationSensorValue(sensor, t);
                             const alertStatus = colorizeLocationSensorValues ? locationSensorAlertStatus(sensor) : null;
                             const valueColor =
-                              alertStatus === 'alert'
-                                ? 'text-red-400'
-                                : alertStatus === 'ok'
-                                  ? 'text-green-400'
-                                  : 'text-white';
+                              alertStatus === 'above'
+                                ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorAboveColor]
+                                : alertStatus === 'below'
+                                  ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorBelowColor]
+                                  : alertStatus === 'ok'
+                                    ? 'text-green-400'
+                                    : 'text-white';
                             return (
                               <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
                                 <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
@@ -6192,11 +6200,13 @@ export function SettingsPage() {
         />
       )}
 
-      {showLocationSensorDefaultsModal && (
-        <LocationSensorDefaultsModal
+      {showLocationSensorOptionsModal && (
+        <LocationSensorOptionsModal
           onClose={() => {
-            setShowLocationSensorDefaultsModal(false);
+            setShowLocationSensorOptionsModal(false);
             setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
+            setLocationSensorAboveColor(loadLocationSensorAlertAboveColor());
+            setLocationSensorBelowColor(loadLocationSensorAlertBelowColor());
           }}
         />
       )}

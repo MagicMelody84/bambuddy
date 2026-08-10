@@ -5694,12 +5694,30 @@ export default {
       added: 'Ayrıca eklendi: {{names}}',
       noneFound: 'Bu konum için eşleşen sıcaklık, nem veya pil sensörü bulunamadı.',
     },
-    defaults: {
-      buttonLabel: 'Otomatik ekleme varsayılanları',
-      title: 'Sensörlerin Otomatik Eklenmesi İçin Varsayılan Değerler',
+    options: {
+      buttonLabel: 'Sensör seçenekleri',
+      title: 'Konum Sensörü Seçenekleri',
       description: 'Bu değerler, bir konumun ilk sensörüyle birlikte bir sıcaklık, nem veya pil sensörü otomatik olarak bağlandığında kullanılır.',
       colorizeValues: 'Sensör değerlerini uyarı eşiklerine göre renklendir',
-      saved: 'Varsayılanlar kaydedildi',
+      aboveColor: 'Eşik üstü rengi',
+      belowColor: 'Eşik altı rengi',
+      colors: {
+        red: 'Kırmızı',
+        orange: 'Turuncu',
+        yellow: 'Sarı',
+        blue: 'Mavi',
+        purple: 'Mor',
+        pink: 'Pembe',
+      },
+      saved: 'Seçenekler kaydedildi',
+      reset: 'Sıfırla',
+      resetConfirm: {
+        title: 'Mevcut tüm konum sensörleri sıfırlansın mı?',
+        message:
+          'Bu işlem, mevcut tüm konum sıcaklık, nem ve pil sensörlerinin uyarı eşiklerini, bildirimlerini ve kart görünürlüğünü yukarıda yapılandırılan değerlerle üzerine yazar — yazıcı sensörleri etkilenmez. Bu işlem geri alınamaz.',
+      },
+      resetDone: '{{count}} konum sensörüne uygulandı',
+      resetFailed: 'Konum sensörleri sıfırlanamadı',
     },
     deleteAllConfirm: {
       title: 'Tüm sensörler silinsin mi?',

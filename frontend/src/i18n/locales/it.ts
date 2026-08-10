@@ -5719,12 +5719,30 @@ export default {
       added: 'Aggiunto anche: {{names}}',
       noneFound: 'Nessun sensore di temperatura, umidità o batteria corrispondente trovato per questa posizione.',
     },
-    defaults: {
-      buttonLabel: 'Valori predefiniti per l\'aggiunta automatica',
-      title: 'Valori predefiniti per l\'aggiunta automatica dei sensori',
+    options: {
+      buttonLabel: 'Opzioni sensori',
+      title: 'Opzioni sensori di posizione',
       description: 'Questi valori vengono usati quando un sensore di temperatura, umidità o batteria viene collegato automaticamente insieme al primo sensore di una posizione.',
       colorizeValues: 'Colora i valori dei sensori in base alle relative soglie di allarme',
-      saved: 'Valori predefiniti salvati',
+      aboveColor: 'Colore sopra la soglia',
+      belowColor: 'Colore sotto la soglia',
+      colors: {
+        red: 'Rosso',
+        orange: 'Arancione',
+        yellow: 'Giallo',
+        blue: 'Blu',
+        purple: 'Viola',
+        pink: 'Rosa',
+      },
+      saved: 'Opzioni salvate',
+      reset: 'Ripristina',
+      resetConfirm: {
+        title: 'Reimpostare tutti i sensori di posizione esistenti?',
+        message:
+          'Questo sovrascrive le soglie di allarme, le notifiche e la visibilità sulla scheda di tutti i sensori di temperatura, umidità e batteria di posizione esistenti con i valori configurati sopra: i sensori della stampante non sono interessati. Questa azione non può essere annullata.',
+      },
+      resetDone: 'Applicato a {{count}} sensori di posizione',
+      resetFailed: 'Impossibile reimpostare i sensori di posizione',
     },
     deleteAllConfirm: {
       title: 'Eliminare tutti i sensori?',

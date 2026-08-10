@@ -5730,12 +5730,30 @@ export default {
       added: 'Zusätzlich hinzugefügt: {{names}}',
       noneFound: 'Keine passenden Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren für diesen Lagerort gefunden.',
     },
-    defaults: {
-      buttonLabel: 'Standardwerte für automatisches Hinzufügen',
-      title: 'Standardwerte für automatisches Hinzufügen',
+    options: {
+      buttonLabel: 'Sensor-Optionen',
+      title: 'Lagerort-Sensor-Optionen',
       description: 'Diese Werte werden verwendet, wenn ein Temperatur-, Luftfeuchtigkeits- oder Batteriesensor automatisch zusammen mit dem ersten Sensor eines Lagerorts gebunden wird.',
       colorizeValues: 'Sensorwerte anhand ihrer Alarmschwellen farbig darstellen',
-      saved: 'Standardwerte gespeichert',
+      aboveColor: 'Farbe für Überschreitung',
+      belowColor: 'Farbe für Unterschreitung',
+      colors: {
+        red: 'Rot',
+        orange: 'Orange',
+        yellow: 'Gelb',
+        blue: 'Blau',
+        purple: 'Lila',
+        pink: 'Magenta',
+      },
+      saved: 'Optionen gespeichert',
+      reset: 'Zurücksetzen',
+      resetConfirm: {
+        title: 'Alle bestehenden Lagerort-Sensoren zurücksetzen?',
+        message:
+          'Dies überschreibt die Alarmschwellen, Benachrichtigungen und Kartensichtbarkeit aller bestehenden Temperatur-, Luftfeuchtigkeits- und Batteriesensoren von Lagerorten mit den oben festgelegten Werten – Drucker-Sensoren sind davon nicht betroffen. Dies kann nicht rückgängig gemacht werden.',
+      },
+      resetDone: 'Auf {{count}} Lagerort-Sensoren angewendet',
+      resetFailed: 'Zurücksetzen der Lagerort-Sensoren fehlgeschlagen',
     },
     deleteAllConfirm: {
       title: 'Alle Sensoren löschen?',

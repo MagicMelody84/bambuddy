@@ -5460,12 +5460,30 @@ export default {
       added: '다음도 추가됨: {{names}}',
       noneFound: '이 위치에 일치하는 온도, 습도 또는 배터리 센서를 찾을 수 없습니다.',
     },
-    defaults: {
-      buttonLabel: '자동 추가 기본값',
-      title: '센서 자동 추가 기본값',
+    options: {
+      buttonLabel: '센서 옵션',
+      title: '위치 센서 옵션',
       description: '이 값은 위치의 첫 번째 센서와 함께 온도, 습도 또는 배터리 센서가 자동으로 연결될 때 사용됩니다.',
       colorizeValues: '경보 임계값에 따라 센서 값에 색상 표시',
-      saved: '기본값이 저장되었습니다',
+      aboveColor: '임계값 초과 색상',
+      belowColor: '임계값 미만 색상',
+      colors: {
+        red: '빨강',
+        orange: '주황',
+        yellow: '노랑',
+        blue: '파랑',
+        purple: '보라',
+        pink: '분홍',
+      },
+      saved: '옵션이 저장되었습니다',
+      reset: '초기화',
+      resetConfirm: {
+        title: '기존 위치 센서를 모두 재설정하시겠습니까?',
+        message:
+          '위에서 설정한 값으로 기존의 모든 보관 위치 온도, 습도, 배터리 센서의 경보 임계값, 알림, 카드 표시 여부를 덮어씁니다. 프린터 센서는 영향을 받지 않습니다. 이 작업은 되돌릴 수 없습니다.',
+      },
+      resetDone: '{{count}}개의 위치 센서에 적용되었습니다',
+      resetFailed: '위치 센서 재설정에 실패했습니다',
     },
     deleteAllConfirm: {
       title: '모든 센서를 삭제하시겠습니까?',

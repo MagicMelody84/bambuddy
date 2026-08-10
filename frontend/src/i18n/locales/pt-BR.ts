@@ -5719,12 +5719,30 @@ export default {
       added: 'Também adicionado: {{names}}',
       noneFound: 'Nenhum sensor de temperatura, umidade ou bateria correspondente foi encontrado para este local.',
     },
-    defaults: {
-      buttonLabel: 'Padrões para adição automática',
-      title: 'Valores padrão para adição automática de sensores',
+    options: {
+      buttonLabel: 'Opções do sensor',
+      title: 'Opções do Sensor de Local',
       description: 'Esses valores são usados quando um sensor de temperatura, umidade ou bateria é vinculado automaticamente junto com o primeiro sensor de um local.',
       colorizeValues: 'Colorir os valores dos sensores de acordo com seus limites de alerta',
-      saved: 'Padrões salvos',
+      aboveColor: 'Cor acima do limite',
+      belowColor: 'Cor abaixo do limite',
+      colors: {
+        red: 'Vermelho',
+        orange: 'Laranja',
+        yellow: 'Amarelo',
+        blue: 'Azul',
+        purple: 'Roxo',
+        pink: 'Rosa',
+      },
+      saved: 'Opções salvas',
+      reset: 'Redefinir',
+      resetConfirm: {
+        title: 'Redefinir todos os sensores de local existentes?',
+        message:
+          'Isso sobrescreve os limites de alerta, notificações e visibilidade no cartão de todos os sensores de temperatura, umidade e bateria de locais existentes com os valores configurados acima — os sensores de impressora não são afetados. Isso não pode ser desfeito.',
+      },
+      resetDone: 'Aplicado a {{count}} sensores de local',
+      resetFailed: 'Falha ao redefinir os sensores de local',
     },
     deleteAllConfirm: {
       title: 'Excluir todos os sensores?',

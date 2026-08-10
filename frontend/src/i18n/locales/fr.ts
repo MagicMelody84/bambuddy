@@ -5720,12 +5720,30 @@ export default {
       added: 'Également ajouté : {{names}}',
       noneFound: 'Aucun capteur de température, d\'humidité ou de batterie correspondant trouvé pour cet emplacement.',
     },
-    defaults: {
-      buttonLabel: 'Valeurs par défaut pour l\'ajout automatique',
-      title: 'Valeurs par défaut pour l\'ajout automatique de capteurs',
+    options: {
+      buttonLabel: 'Options des capteurs',
+      title: 'Options des capteurs d\'emplacement',
       description: 'Ces valeurs sont utilisées lorsqu\'un capteur de température, d\'humidité ou de batterie est lié automatiquement avec le premier capteur d\'un emplacement.',
       colorizeValues: "Colorer les valeurs des capteurs selon leurs seuils d'alerte",
-      saved: 'Valeurs par défaut enregistrées',
+      aboveColor: 'Couleur au-dessus du seuil',
+      belowColor: 'Couleur en dessous du seuil',
+      colors: {
+        red: 'Rouge',
+        orange: 'Orange',
+        yellow: 'Jaune',
+        blue: 'Bleu',
+        purple: 'Violet',
+        pink: 'Rose',
+      },
+      saved: 'Options enregistrées',
+      reset: 'Réinitialiser',
+      resetConfirm: {
+        title: 'Réinitialiser tous les capteurs d\'emplacement existants ?',
+        message:
+          'Cela écrase les seuils d\'alerte, les notifications et la visibilité sur la carte de tous les capteurs de température, d\'humidité et de batterie d\'emplacement existants avec les valeurs configurées ci-dessus — les capteurs d\'imprimante ne sont pas concernés. Cette action est irréversible.',
+      },
+      resetDone: 'Appliqué à {{count}} capteurs d\'emplacement',
+      resetFailed: 'Échec de la réinitialisation des capteurs d\'emplacement',
     },
     deleteAllConfirm: {
       title: 'Supprimer tous les capteurs ?',

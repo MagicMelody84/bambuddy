@@ -5738,12 +5738,30 @@ export default {
       added: 'También añadido: {{names}}',
       noneFound: 'No se encontraron sensores de temperatura, humedad o batería coincidentes para esta ubicación.',
     },
-    defaults: {
-      buttonLabel: 'Valores predeterminados para añadir automáticamente',
-      title: 'Valores predeterminados para añadir sensores automáticamente',
+    options: {
+      buttonLabel: 'Opciones de sensores',
+      title: 'Opciones de sensores de ubicación',
       description: 'Estos valores se usan cuando un sensor de temperatura, humedad o batería se vincula automáticamente junto con el primer sensor de una ubicación.',
       colorizeValues: 'Colorear los valores de los sensores según sus umbrales de alerta',
-      saved: 'Valores predeterminados guardados',
+      aboveColor: 'Color al superar el umbral',
+      belowColor: 'Color al estar por debajo del umbral',
+      colors: {
+        red: 'Rojo',
+        orange: 'Naranja',
+        yellow: 'Amarillo',
+        blue: 'Azul',
+        purple: 'Morado',
+        pink: 'Rosa',
+      },
+      saved: 'Opciones guardadas',
+      reset: 'Restablecer',
+      resetConfirm: {
+        title: '¿Restablecer todos los sensores de ubicación existentes?',
+        message:
+          'Esto sobrescribe los umbrales de alerta, las notificaciones y la visibilidad en la tarjeta de todos los sensores de temperatura, humedad y batería de ubicaciones existentes con los valores configurados arriba; los sensores de impresora no se ven afectados. Esto no se puede deshacer.',
+      },
+      resetDone: 'Aplicado a {{count}} sensores de ubicación',
+      resetFailed: 'No se pudieron restablecer los sensores de ubicación',
     },
     deleteAllConfirm: {
       title: '¿Eliminar todos los sensores?',

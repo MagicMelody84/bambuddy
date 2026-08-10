@@ -5719,12 +5719,30 @@ export default {
       added: '已同时添加：{{names}}',
       noneFound: '未找到该位置匹配的温度、湿度或电池传感器。',
     },
-    defaults: {
-      buttonLabel: '自动添加默认值',
-      title: '传感器自动添加默认值',
+    options: {
+      buttonLabel: '传感器选项',
+      title: '位置传感器选项',
       description: '当某个位置绑定第一个传感器时，若自动添加温度、湿度或电池传感器，将使用这些默认值。',
       colorizeValues: '根据警报阈值为传感器数值着色',
-      saved: '默认值已保存',
+      aboveColor: '超过阈值的颜色',
+      belowColor: '低于阈值的颜色',
+      colors: {
+        red: '红色',
+        orange: '橙色',
+        yellow: '黄色',
+        blue: '蓝色',
+        purple: '紫色',
+        pink: '粉色',
+      },
+      saved: '选项已保存',
+      reset: '重置',
+      resetConfirm: {
+        title: '要重置所有现有位置传感器吗？',
+        message:
+          '这将使用上方配置的值覆盖所有现有存储位置温度、湿度和电池传感器的警报阈值、通知和卡片可见性设置——不会影响打印机传感器。此操作无法撤销。',
+      },
+      resetDone: '已应用于 {{count}} 个位置传感器',
+      resetFailed: '重置位置传感器失败',
     },
     deleteAllConfirm: {
       title: '删除所有传感器？',

@@ -5719,12 +5719,30 @@ export default {
       added: '已同時新增：{{names}}',
       noneFound: '未找到該位置相符的溫度、濕度或電池感測器。',
     },
-    defaults: {
-      buttonLabel: '自動新增預設值',
-      title: '感測器自動新增預設值',
+    options: {
+      buttonLabel: '感測器選項',
+      title: '位置感測器選項',
       description: '當某個位置綁定第一個感測器時，若自動新增溫度、濕度或電池感測器，將使用這些預設值。',
       colorizeValues: '依警示閾值為感測器數值著色',
-      saved: '預設值已儲存',
+      aboveColor: '超過閾值的顏色',
+      belowColor: '低於閾值的顏色',
+      colors: {
+        red: '紅色',
+        orange: '橙色',
+        yellow: '黃色',
+        blue: '藍色',
+        purple: '紫色',
+        pink: '粉色',
+      },
+      saved: '選項已儲存',
+      reset: '重設',
+      resetConfirm: {
+        title: '要重設所有現有位置感測器嗎？',
+        message:
+          '這將使用上方設定的值覆寫所有現有儲存位置溫度、濕度及電池感測器的警示閾值、通知與卡片顯示設定——不會影響印表機感測器。此操作無法復原。',
+      },
+      resetDone: '已套用至 {{count}} 個位置感測器',
+      resetFailed: '重設位置感測器失敗',
     },
     deleteAllConfirm: {
       title: '刪除所有感測器？',
