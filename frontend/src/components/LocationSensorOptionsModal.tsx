@@ -10,10 +10,12 @@ import {
   LOCATION_SENSOR_ALERT_COLORS,
   loadLocationSensorAlertAboveColor,
   loadLocationSensorAlertBelowColor,
+  loadLocationSensorAlertOptimalColor,
   loadLocationSensorColorizeValues,
   loadLocationSensorDefaults,
   saveLocationSensorAlertAboveColor,
   saveLocationSensorAlertBelowColor,
+  saveLocationSensorAlertOptimalColor,
   saveLocationSensorColorizeValues,
   saveLocationSensorDefaults,
   type LocationSensorAlertColor,
@@ -142,6 +144,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   const [colorizeValues, setColorizeValues] = useState(() => loadLocationSensorColorizeValues());
   const [aboveColor, setAboveColor] = useState<LocationSensorAlertColor>(() => loadLocationSensorAlertAboveColor());
   const [belowColor, setBelowColor] = useState<LocationSensorAlertColor>(() => loadLocationSensorAlertBelowColor());
+  const [optimalColor, setOptimalColor] = useState<LocationSensorAlertColor>(() => loadLocationSensorAlertOptimalColor());
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const updateCategory = (category: LocationSensorCategory, patch: Partial<LocationSensorCategoryDefaults>) => {
@@ -154,6 +157,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
     saveLocationSensorColorizeValues(colorizeValues);
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
+    saveLocationSensorAlertOptimalColor(optimalColor);
     showToast(t('locationHaSensors.options.saved'), 'success');
     onClose();
   };
@@ -243,43 +247,55 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
               <span className="text-sm text-white">{t('locationHaSensors.options.colorizeValues')}</span>
             </label>
 
-            <div className={`grid grid-cols-2 gap-3 ${colorizeValues ? '' : 'opacity-50'}`}>
-              <div>
-                <label className="block text-xs text-bambu-gray mb-1" htmlFor="location-sensor-above-color">
-                  {t('locationHaSensors.options.aboveColor')}
-                </label>
-                <select
-                  id="location-sensor-above-color"
-                  value={aboveColor}
-                  onChange={(e) => setAboveColor(e.target.value as LocationSensorAlertColor)}
-                  disabled={!colorizeValues}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white disabled:cursor-not-allowed"
-                >
-                  {LOCATION_SENSOR_ALERT_COLORS.map((color) => (
-                    <option key={color} value={color}>
-                      {t(`locationHaSensors.options.colors.${color}`)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-bambu-gray mb-1" htmlFor="location-sensor-below-color">
-                  {t('locationHaSensors.options.belowColor')}
-                </label>
-                <select
-                  id="location-sensor-below-color"
-                  value={belowColor}
-                  onChange={(e) => setBelowColor(e.target.value as LocationSensorAlertColor)}
-                  disabled={!colorizeValues}
-                  className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white disabled:cursor-not-allowed"
-                >
-                  {LOCATION_SENSOR_ALERT_COLORS.map((color) => (
-                    <option key={color} value={color}>
-                      {t(`locationHaSensors.options.colors.${color}`)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className={`grid grid-cols-3 gap-x-3 gap-y-1 items-end ${colorizeValues ? '' : 'opacity-50'}`}>
+              <label className="block text-xs text-bambu-gray" htmlFor="location-sensor-below-color">
+                {t('locationHaSensors.options.belowColor')}
+              </label>
+              <label className="block text-xs text-bambu-gray" htmlFor="location-sensor-optimal-color">
+                {t('locationHaSensors.options.optimalColor')}
+              </label>
+              <label className="block text-xs text-bambu-gray" htmlFor="location-sensor-above-color">
+                {t('locationHaSensors.options.aboveColor')}
+              </label>
+              <select
+                id="location-sensor-below-color"
+                value={belowColor}
+                onChange={(e) => setBelowColor(e.target.value as LocationSensorAlertColor)}
+                disabled={!colorizeValues}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white disabled:cursor-not-allowed"
+              >
+                {LOCATION_SENSOR_ALERT_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {t(`locationHaSensors.options.colors.${color}`)}
+                  </option>
+                ))}
+              </select>
+              <select
+                id="location-sensor-optimal-color"
+                value={optimalColor}
+                onChange={(e) => setOptimalColor(e.target.value as LocationSensorAlertColor)}
+                disabled={!colorizeValues}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white disabled:cursor-not-allowed"
+              >
+                {LOCATION_SENSOR_ALERT_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {t(`locationHaSensors.options.colors.${color}`)}
+                  </option>
+                ))}
+              </select>
+              <select
+                id="location-sensor-above-color"
+                value={aboveColor}
+                onChange={(e) => setAboveColor(e.target.value as LocationSensorAlertColor)}
+                disabled={!colorizeValues}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white disabled:cursor-not-allowed"
+              >
+                {LOCATION_SENSOR_ALERT_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {t(`locationHaSensors.options.colors.${color}`)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

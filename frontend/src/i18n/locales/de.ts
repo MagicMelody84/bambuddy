@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: 'Allgemein',
       smartPlugs: 'Smart Plugs',
+      sensors: 'Sensoren',
       notifications: 'Benachrichtigungen',
       queue: 'Workflow',
       queueDispatch: 'Warteschlange & Dispatch',
@@ -5737,10 +5738,12 @@ export default {
       colorizeValues: 'Sensorwerte anhand ihrer Alarmschwellen farbig darstellen',
       aboveColor: 'Farbe für Überschreitung',
       belowColor: 'Farbe für Unterschreitung',
+      optimalColor: 'Farbe für Optimalwert',
       colors: {
         red: 'Rot',
         orange: 'Orange',
         yellow: 'Gelb',
+        green: 'Grün',
         blue: 'Blau',
         purple: 'Lila',
         pink: 'Magenta',

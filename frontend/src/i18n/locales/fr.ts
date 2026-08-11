@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: 'Général',
       smartPlugs: 'Prises connectées',
+      sensors: 'Capteurs',
       notifications: 'Notifications',
       queue: 'Flux de travail',
       queueDispatch: 'File & Distribution',
@@ -5727,10 +5728,12 @@ export default {
       colorizeValues: "Colorer les valeurs des capteurs selon leurs seuils d'alerte",
       aboveColor: 'Couleur au-dessus du seuil',
       belowColor: 'Couleur en dessous du seuil',
+      optimalColor: 'Couleur pour la valeur optimale',
       colors: {
         red: 'Rouge',
         orange: 'Orange',
         yellow: 'Jaune',
+        green: 'Vert',
         blue: 'Bleu',
         purple: 'Violet',
         pink: 'Rose',

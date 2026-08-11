@@ -15,6 +15,7 @@ import {
   LOCATION_SENSOR_ALERT_COLOR_CLASSES,
   loadLocationSensorAlertAboveColor,
   loadLocationSensorAlertBelowColor,
+  loadLocationSensorAlertOptimalColor,
   loadLocationSensorColorizeValues,
 } from '../utils/locationSensorDefaults';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
@@ -65,7 +66,7 @@ import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/setting
 import type { UsersSubTab } from '../lib/settingsSearch';
 import { availableEngines, hasEngineChoice, resolveEngine, type SliceEngineId } from '../lib/sliceEngines';
 
-const validTabs = ['general', 'plugs', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
+const validTabs = ['general', 'plugs', 'sensors', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
 type TabType = typeof validTabs[number];
 
 // Cross-tab search registrations for cards rendered inline in this file.
@@ -80,6 +81,8 @@ registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'general', keywo
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'general', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'general', keywords: 'data reset clear logs notifications preferences', anchor: 'card-data' });
 registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'plugs', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
+registerSettingsSearch({ labelKey: 'haSensors.sectionTitle', tab: 'sensors', keywords: 'home assistant sensor printer temperature humidity alert notify block print', anchor: 'card-ha-sensors' });
+registerSettingsSearch({ labelKey: 'locationHaSensors.sectionTitle', tab: 'sensors', keywords: 'home assistant sensor location storage box temperature humidity battery alert notify', anchor: 'card-location-sensors' });
 registerSettingsSearch({ labelKey: 'settings.providers', tab: 'notifications', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
 registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'notifications', keywords: 'message templates notification text edit', anchor: 'card-templates' });
 registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'queue', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
@@ -264,6 +267,9 @@ export function SettingsPage() {
   );
   const [locationSensorAboveColor, setLocationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
   const [locationSensorBelowColor, setLocationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [locationSensorOptimalColor, setLocationSensorOptimalColor] = useState(() =>
+    loadLocationSensorAlertOptimalColor()
+  );
   const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
     locationName: string;
     sensorIds: number[];
@@ -523,20 +529,18 @@ export function SettingsPage() {
   const { data: haSensors } = useQuery({
     queryKey: ['haSensors'],
     queryFn: () => api.getHASensors(),
-    enabled: activeTab === 'plugs',
   });
 
   const { data: locationHaSensors } = useQuery({
     queryKey: ['locationHaSensors'],
     queryFn: () => api.getLocationHASensors(),
-    enabled: activeTab === 'plugs',
     refetchInterval: 15000,
   });
 
   const { data: haSensorLocations } = useQuery({
     queryKey: inventoryLocationsQueryKey,
     queryFn: api.getLocations,
-    enabled: activeTab === 'plugs',
+    enabled: activeTab === 'sensors',
   });
 
   const deleteLocationSensorsMutation = useMutation({
@@ -1586,6 +1590,22 @@ export function SettingsPage() {
           {smartPlugs && smartPlugs.length > 0 && (
             <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
               {smartPlugs.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => handleTabChange('sensors')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
+            activeTab === 'sensors'
+              ? 'text-bambu-green border-bambu-green'
+              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
+          }`}
+        >
+          <Gauge className="w-4 h-4" />
+          {t('settings.tabs.sensors')}
+          {(haSensors?.length ?? 0) + (locationHaSensors?.length ?? 0) > 0 && (
+            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
+              {(haSensors?.length ?? 0) + (locationHaSensors?.length ?? 0)}
             </span>
           )}
         </button>
@@ -3807,11 +3827,15 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
 
-          {/* Home Assistant sensors (#1148, #448). Sits under the plugs on the
-              same tab: same integration, same credentials, but read-only —
-              these are contacts and thermometers, not switches. */}
-          <div className="mt-8">
+      {/* Sensors Tab */}
+      {activeTab === 'sensors' && (
+        <div id="card-sensors">
+          {/* Home Assistant sensors (#1148, #448): read-only contact and
+              thermometer entities, distinct from the switchable smart plugs. */}
+          <div id="card-ha-sensors">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <Gauge className="w-5 h-5 text-bambu-green" />
@@ -3890,7 +3914,7 @@ export function SettingsPage() {
             )}
           </div>
 
-          <div className="mt-8">
+          <div id="card-location-sensors" className="mt-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <Gauge className="w-5 h-5 text-bambu-green" />
@@ -3979,7 +4003,7 @@ export function SettingsPage() {
                                 : alertStatus === 'below'
                                   ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorBelowColor]
                                   : alertStatus === 'ok'
-                                    ? 'text-green-400'
+                                    ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorOptimalColor]
                                     : 'text-white';
                             return (
                               <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
@@ -6207,6 +6231,7 @@ export function SettingsPage() {
             setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
             setLocationSensorAboveColor(loadLocationSensorAlertAboveColor());
             setLocationSensorBelowColor(loadLocationSensorAlertBelowColor());
+            setLocationSensorOptimalColor(loadLocationSensorAlertOptimalColor());
           }}
         />
       )}

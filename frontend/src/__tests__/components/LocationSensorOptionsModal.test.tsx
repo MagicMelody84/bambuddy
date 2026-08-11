@@ -87,7 +87,7 @@ describe('LocationSensorOptionsModal', () => {
     );
   });
 
-  it('saves the chosen above/below alert colors', async () => {
+  it('saves the chosen above/below/optimal alert colors', async () => {
     const user = userEvent.setup();
     render(<LocationSensorOptionsModal onClose={() => {}} />);
 
@@ -95,10 +95,12 @@ describe('LocationSensorOptionsModal', () => {
 
     await user.selectOptions(screen.getByLabelText(/above threshold color/i), 'orange');
     await user.selectOptions(screen.getByLabelText(/below threshold color/i), 'purple');
+    await user.selectOptions(screen.getByLabelText(/optimal value color/i), 'blue');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
     expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-above-color', 'orange');
     expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-below-color', 'purple');
+    expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-optimal-color', 'blue');
   });
 
   it('disables the color pickers when colorizing is turned off', async () => {
@@ -111,6 +113,7 @@ describe('LocationSensorOptionsModal', () => {
 
     expect(screen.getByLabelText(/above threshold color/i)).toBeDisabled();
     expect(screen.getByLabelText(/below threshold color/i)).toBeDisabled();
+    expect(screen.getByLabelText(/optimal value color/i)).toBeDisabled();
   });
 
   it('asks for confirmation before overwriting existing sensors, then applies the configured values', async () => {

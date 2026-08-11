@@ -1800,6 +1800,7 @@ export default {
     tabs: {
       general: '一般',
       smartPlugs: 'スマートプラグ',
+      sensors: 'センサー',
       notifications: '通知',
       queue: 'ワークフロー',
       queueDispatch: 'キューとディスパッチ',
@@ -5738,10 +5739,12 @@ export default {
       colorizeValues: 'アラートしきい値に応じてセンサー値を色分け表示',
       aboveColor: 'しきい値超過時の色',
       belowColor: 'しきい値未満時の色',
+      optimalColor: '最適値の色',
       colors: {
         red: '赤',
         orange: 'オレンジ',
         yellow: '黄',
+        green: '緑',
         blue: '青',
         purple: '紫',
         pink: 'ピンク',

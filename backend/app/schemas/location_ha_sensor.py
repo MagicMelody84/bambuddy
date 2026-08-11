@@ -85,4 +85,7 @@ class LocationHASensorReading(BaseModel):
     value: float | None = None
     alerting: bool = False
     reachable: bool = True
+    alert_state: str | None = None
+    alert_above: float | None = None
+    alert_below: float | None = None
     last_changed: datetime | None = None

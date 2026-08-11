@@ -1714,6 +1714,7 @@ export default {
     tabs: {
       general: '일반',
       smartPlugs: '스마트 플러그',
+      sensors: '센서',
       notifications: '알림',
       queue: '워크플로우',
       queueDispatch: '큐 및 디스패치',
@@ -5467,10 +5468,12 @@ export default {
       colorizeValues: '경보 임계값에 따라 센서 값에 색상 표시',
       aboveColor: '임계값 초과 색상',
       belowColor: '임계값 미만 색상',
+      optimalColor: '최적값 색상',
       colors: {
         red: '빨강',
         orange: '주황',
         yellow: '노랑',
+        green: '초록',
         blue: '파랑',
         purple: '보라',
         pink: '분홍',

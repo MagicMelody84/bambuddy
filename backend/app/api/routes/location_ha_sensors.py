@@ -99,6 +99,9 @@ async def get_location_sensor_readings(
                 value=cached.value if cached else None,
                 alerting=cached.alerting if cached else False,
                 reachable=cached.reachable if cached else False,
+                alert_state=sensor.alert_state,
+                alert_above=sensor.alert_above,
+                alert_below=sensor.alert_below,
                 last_changed=sensor.last_changed,
             )
         )

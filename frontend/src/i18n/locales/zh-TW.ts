@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: '通用',
       smartPlugs: '智慧插座',
+      sensors: '感測器',
       notifications: '通知',
       queue: '工作流程',
       queueDispatch: '佇列與分派',
@@ -5726,10 +5727,12 @@ export default {
       colorizeValues: '依警示閾值為感測器數值著色',
       aboveColor: '超過閾值的顏色',
       belowColor: '低於閾值的顏色',
+      optimalColor: '最佳值顏色',
       colors: {
         red: '紅色',
         orange: '橙色',
         yellow: '黃色',
+        green: '綠色',
         blue: '藍色',
         purple: '紫色',
         pink: '粉色',

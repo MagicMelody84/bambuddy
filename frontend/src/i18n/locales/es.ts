@@ -1802,6 +1802,7 @@ export default {
     tabs: {
       general: 'General',
       smartPlugs: 'Enchufes inteligentes',
+      sensors: 'Sensores',
       notifications: 'Notificaciones',
       queue: 'Flujo de trabajo',
       queueDispatch: 'Cola y Despacho',
@@ -5745,10 +5746,12 @@ export default {
       colorizeValues: 'Colorear los valores de los sensores según sus umbrales de alerta',
       aboveColor: 'Color al superar el umbral',
       belowColor: 'Color al estar por debajo del umbral',
+      optimalColor: 'Color para el valor óptimo',
       colors: {
         red: 'Rojo',
         orange: 'Naranja',
         yellow: 'Amarillo',
+        green: 'Verde',
         blue: 'Azul',
         purple: 'Morado',
         pink: 'Rosa',

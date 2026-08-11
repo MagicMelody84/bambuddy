@@ -36,6 +36,15 @@ import {
   invalidateSpoolAndLocationQueries,
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
+import {
+  loadLocationSensorAlertAboveColor,
+  loadLocationSensorAlertBelowColor,
+  loadLocationSensorAlertOptimalColor,
+  loadLocationSensorColorizeValues,
+  locationSensorReadingAlertStatus,
+  locationSensorValueColorClass,
+  type LocationSensorAlertColor,
+} from '../utils/locationSensorDefaults';
 
 type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
@@ -178,6 +187,10 @@ type CellCtx = {
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
 };
 
 // Column header labels (25 columns — matching SpoolBuddy exactly)
@@ -279,26 +292,38 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       </span>
     );
   },
-  temperature: ({ spool, locationReadingsMap, t }) => {
+  temperature: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
     const reading = spool.location_id
       ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'temperature')
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
-    return <span className="text-sm text-bambu-gray">{describeLocationSensor(reading, t)}</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
+      </span>
+    );
   },
-  humidity: ({ spool, locationReadingsMap, t }) => {
+  humidity: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
     const reading = spool.location_id
       ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'humidity' || r.device_class === 'moisture')
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
-    return <span className="text-sm text-bambu-gray">{describeLocationSensor(reading, t)}</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
+      </span>
+    );
   },
-  battery: ({ spool, locationReadingsMap, t }) => {
+  battery: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
     const reading = spool.location_id
       ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'battery')
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
-    return <span className="text-sm text-bambu-gray">{describeLocationSensor(reading, t)}</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
+      </span>
+    );
   },
   label_weight: ({ spool }) => (
     <span className="text-sm text-white">{formatWeight(spool.label_weight)}</span>
@@ -611,6 +636,11 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   });
 
   const dateFormat: DateFormat = settings?.date_format || 'system';
+
+  const [colorizeLocationSensors] = useState(() => loadLocationSensorColorizeValues());
+  const [locationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [locationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [locationSensorOptimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
 
   // Query key and fetch function differ based on data source
   const spoolsQueryKey = spoolmanMode ? ['spoolman-inventory-spools'] : ['inventory-spools'];
@@ -2162,6 +2192,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           dateFormat={dateFormat}
                           t={t}
                           onSyncWeight={handleSyncWeight}
+                          colorizeLocationSensors={colorizeLocationSensors}
+                          locationSensorAboveColor={locationSensorAboveColor}
+                          locationSensorBelowColor={locationSensorBelowColor}
+                          locationSensorOptimalColor={locationSensorOptimalColor}
                         />
                       );
                     }
@@ -2191,6 +2225,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         dateFormat={dateFormat}
                         t={t}
                         onSyncWeight={handleSyncWeight}
+                        colorizeLocationSensors={colorizeLocationSensors}
+                        locationSensorAboveColor={locationSensorAboveColor}
+                        locationSensorBelowColor={locationSensorBelowColor}
+                        locationSensorOptimalColor={locationSensorOptimalColor}
                       />
                     );
                   })}
@@ -2667,6 +2705,18 @@ function describeLocationSensor(
   return t(`haSensors.states.${key}`, { defaultValue: key });
 }
 
+function locationSensorCellColor(
+  reading: LocationHASensorReading,
+  colorize: boolean,
+  aboveColor: LocationSensorAlertColor,
+  belowColor: LocationSensorAlertColor,
+  optimalColor: LocationSensorAlertColor
+): string {
+  if (!colorize) return 'text-bambu-gray';
+  const status = locationSensorReadingAlertStatus(reading);
+  return locationSensorValueColorClass(status, aboveColor, belowColor, optimalColor) || 'text-bambu-gray';
+}
+
 function SpoolLocationFooter({
   locationId, locationName, isLast,
 }: {
@@ -2675,6 +2725,10 @@ function SpoolLocationFooter({
   isLast: boolean;
 }) {
   const { t } = useTranslation();
+  const [colorize] = useState(() => loadLocationSensorColorizeValues());
+  const [aboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [belowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [optimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
 
   const { data: readings } = useQuery({
     queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
@@ -2705,7 +2759,9 @@ function SpoolLocationFooter({
           return (
             <span key={reading.id} title={reading.name} className="flex items-center gap-1">
               <Icon className="w-3 h-3" />
-              {describeLocationSensor(reading, t)}
+              <span className={locationSensorCellColor(reading, colorize, aboveColor, belowColor, optimalColor)}>
+                {describeLocationSensor(reading, t)}
+              </span>
             </span>
           );
         })}
@@ -2716,7 +2772,9 @@ function SpoolLocationFooter({
           return (
             <span key={batteryReading.id} title={batteryReading.name} className="flex items-center gap-1 ml-auto">
               <Icon className="w-3 h-3" />
-              {describeLocationSensor(batteryReading, t)}
+              <span className={locationSensorCellColor(batteryReading, colorize, aboveColor, belowColor, optimalColor)}>
+                {describeLocationSensor(batteryReading, t)}
+              </span>
             </span>
           );
         })()}
@@ -2729,6 +2787,7 @@ function SpoolTableRow({
   spool, remaining, pct, isSelected, onToggleSelected,
   onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
   visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
 }: {
   spool: InventorySpool;
   remaining: number;
@@ -2750,6 +2809,10 @@ function SpoolTableRow({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
 }) {
   return (
     <tr
@@ -2771,7 +2834,7 @@ function SpoolTableRow({
       </td>
       {visibleColumns.map((colId) => (
         <td key={colId} className="py-3 px-4">
-          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight })}
+          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
         </td>
       ))}
       <td className="py-3 px-4">
@@ -2821,6 +2884,7 @@ function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
   onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
   visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
   spools: InventorySpool[];
@@ -2845,6 +2909,10 @@ function SpoolTableGroup({
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
   selectedIds?: Set<number>;
   onToggleSelected?: (id: number) => void;
   onToggleGroupSelected?: (ids: number[], select: boolean) => void;
@@ -2873,14 +2941,14 @@ function SpoolTableGroup({
             {idx === 0 ? (
               <div className="flex items-center gap-2">
                 <ChevronDown className={`w-4 h-4 text-bambu-gray transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight })}
+                {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
               </div>
             ) : colId === 'id' ? (
               <span className="text-xs font-medium bg-bambu-green/20 text-bambu-green px-2 py-0.5 rounded-full">
                 {t('inventory.groupedSpools', { count: spools.length })}
               </span>
             ) : (
-              columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight })
+              columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })
             )}
           </td>
         ))}
@@ -2917,6 +2985,10 @@ function SpoolTableGroup({
             dateFormat={dateFormat}
             t={t}
             onSyncWeight={onSyncWeight}
+            colorizeLocationSensors={colorizeLocationSensors}
+            locationSensorAboveColor={locationSensorAboveColor}
+            locationSensorBelowColor={locationSensorBelowColor}
+            locationSensorOptimalColor={locationSensorOptimalColor}
           />
         );
       })}

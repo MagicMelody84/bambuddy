@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: 'Generale',
       smartPlugs: 'Prese smart',
+      sensors: 'Sensori',
       notifications: 'Notifiche',
       queue: 'Flusso',
       queueDispatch: 'Coda e Dispatch',
@@ -5726,10 +5727,12 @@ export default {
       colorizeValues: 'Colora i valori dei sensori in base alle relative soglie di allarme',
       aboveColor: 'Colore sopra la soglia',
       belowColor: 'Colore sotto la soglia',
+      optimalColor: 'Colore per il valore ottimale',
       colors: {
         red: 'Rosso',
         orange: 'Arancione',
         yellow: 'Giallo',
+        green: 'Verde',
         blue: 'Blu',
         purple: 'Viola',
         pink: 'Rosa',

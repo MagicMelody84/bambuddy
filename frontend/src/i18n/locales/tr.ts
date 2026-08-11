@@ -1803,6 +1803,7 @@ export default {
     tabs: {
       general: 'Genel',
       smartPlugs: 'Akıllı Prizler',
+      sensors: 'Sensörler',
       notifications: 'Bildirimler',
       queue: 'İş Akışı',
       queueDispatch: 'Kuyruk ve Sevkıyat',
@@ -5701,10 +5702,12 @@ export default {
       colorizeValues: 'Sensör değerlerini uyarı eşiklerine göre renklendir',
       aboveColor: 'Eşik üstü rengi',
       belowColor: 'Eşik altı rengi',
+      optimalColor: 'Optimal değer rengi',
       colors: {
         red: 'Kırmızı',
         orange: 'Turuncu',
         yellow: 'Sarı',
+        green: 'Yeşil',
         blue: 'Mavi',
         purple: 'Mor',
         pink: 'Pembe',

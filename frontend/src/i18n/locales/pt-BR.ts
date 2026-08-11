@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: 'Geral',
       smartPlugs: 'Tomadas Inteligentes',
+      sensors: 'Sensores',
       notifications: 'Notificações',
       queue: 'Fluxo',
       queueDispatch: 'Fila e Dispatch',
@@ -5726,10 +5727,12 @@ export default {
       colorizeValues: 'Colorir os valores dos sensores de acordo com seus limites de alerta',
       aboveColor: 'Cor acima do limite',
       belowColor: 'Cor abaixo do limite',
+      optimalColor: 'Cor para o valor ideal',
       colors: {
         red: 'Vermelho',
         orange: 'Laranja',
         yellow: 'Amarelo',
+        green: 'Verde',
         blue: 'Azul',
         purple: 'Roxo',
         pink: 'Rosa',

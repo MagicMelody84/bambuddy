@@ -1801,6 +1801,7 @@ export default {
     tabs: {
       general: '通用',
       smartPlugs: '智能插座',
+      sensors: '传感器',
       notifications: '通知',
       queue: '工作流',
       queueDispatch: '队列与调度',
@@ -5726,10 +5727,12 @@ export default {
       colorizeValues: '根据警报阈值为传感器数值着色',
       aboveColor: '超过阈值的颜色',
       belowColor: '低于阈值的颜色',
+      optimalColor: '最佳值颜色',
       colors: {
         red: '红色',
         orange: '橙色',
         yellow: '黄色',
+        green: '绿色',
         blue: '蓝色',
         purple: '紫色',
         pink: '粉色',

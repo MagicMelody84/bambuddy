@@ -2323,6 +2323,9 @@ export interface LocationHASensorReading {
   value: number | null;
   alerting: boolean;
   reachable: boolean;
+  alert_state: string | null;
+  alert_above: number | null;
+  alert_below: number | null;
   last_changed: string | null;
 }
 

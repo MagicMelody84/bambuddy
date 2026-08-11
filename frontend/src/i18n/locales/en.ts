@@ -1818,6 +1818,7 @@ export default {
     tabs: {
       general: 'General',
       smartPlugs: 'Smart Plugs',
+      sensors: 'Sensors',
       notifications: 'Notifications',
       queue: 'Workflow',
       queueDispatch: 'Queue & Dispatch',
@@ -5787,10 +5788,12 @@ export default {
       colorizeValues: 'Colorize sensor values against their alert thresholds',
       aboveColor: 'Above threshold color',
       belowColor: 'Below threshold color',
+      optimalColor: 'Optimal value color',
       colors: {
         red: 'Red',
         orange: 'Orange',
         yellow: 'Yellow',
+        green: 'Green',
         blue: 'Blue',
         purple: 'Purple',
         pink: 'Pink',

@@ -1,3 +1,5 @@
+import type { LocationHASensorReading } from '../api/client';
+
 export type LocationSensorCategory = 'temperature' | 'humidity' | 'battery';
 
 export interface LocationSensorCategoryDefaults {
@@ -70,13 +72,14 @@ export function saveLocationSensorColorizeValues(value: boolean) {
   }
 }
 
-export const LOCATION_SENSOR_ALERT_COLORS = ['red', 'orange', 'yellow', 'blue', 'purple', 'pink'] as const;
+export const LOCATION_SENSOR_ALERT_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'] as const;
 export type LocationSensorAlertColor = (typeof LOCATION_SENSOR_ALERT_COLORS)[number];
 
 export const LOCATION_SENSOR_ALERT_COLOR_CLASSES: Record<LocationSensorAlertColor, string> = {
   red: 'text-red-400',
   orange: 'text-orange-400',
   yellow: 'text-yellow-400',
+  green: 'text-green-400',
   blue: 'text-blue-400',
   purple: 'text-purple-400',
   pink: 'text-pink-400',
@@ -84,6 +87,7 @@ export const LOCATION_SENSOR_ALERT_COLOR_CLASSES: Record<LocationSensorAlertColo
 
 const ALERT_ABOVE_COLOR_STORAGE_KEY = 'bambuddy-location-sensor-alert-above-color';
 const ALERT_BELOW_COLOR_STORAGE_KEY = 'bambuddy-location-sensor-alert-below-color';
+const ALERT_OPTIMAL_COLOR_STORAGE_KEY = 'bambuddy-location-sensor-alert-optimal-color';
 
 function isAlertColor(value: string | null): value is LocationSensorAlertColor {
   return !!value && (LOCATION_SENSOR_ALERT_COLORS as readonly string[]).includes(value);
@@ -92,9 +96,9 @@ function isAlertColor(value: string | null): value is LocationSensorAlertColor {
 export function loadLocationSensorAlertAboveColor(): LocationSensorAlertColor {
   try {
     const stored = localStorage.getItem(ALERT_ABOVE_COLOR_STORAGE_KEY);
-    return isAlertColor(stored) ? stored : 'red';
+    return isAlertColor(stored) ? stored : 'purple';
   } catch {
-    return 'red';
+    return 'purple';
   }
 }
 
@@ -109,9 +113,9 @@ export function saveLocationSensorAlertAboveColor(color: LocationSensorAlertColo
 export function loadLocationSensorAlertBelowColor(): LocationSensorAlertColor {
   try {
     const stored = localStorage.getItem(ALERT_BELOW_COLOR_STORAGE_KEY);
-    return isAlertColor(stored) ? stored : 'blue';
+    return isAlertColor(stored) ? stored : 'red';
   } catch {
-    return 'blue';
+    return 'red';
   }
 }
 
@@ -121,4 +125,48 @@ export function saveLocationSensorAlertBelowColor(color: LocationSensorAlertColo
   } catch {
     return;
   }
+}
+
+export function loadLocationSensorAlertOptimalColor(): LocationSensorAlertColor {
+  try {
+    const stored = localStorage.getItem(ALERT_OPTIMAL_COLOR_STORAGE_KEY);
+    return isAlertColor(stored) ? stored : 'green';
+  } catch {
+    return 'green';
+  }
+}
+
+export function saveLocationSensorAlertOptimalColor(color: LocationSensorAlertColor) {
+  try {
+    localStorage.setItem(ALERT_OPTIMAL_COLOR_STORAGE_KEY, color);
+  } catch {
+    return;
+  }
+}
+
+export type LocationSensorAlertStatus = 'above' | 'below' | 'ok' | null;
+
+export function locationSensorReadingAlertStatus(reading: LocationHASensorReading): LocationSensorAlertStatus {
+  if (!reading.reachable || reading.state === null) return null;
+  if (reading.kind === 'numeric') {
+    if (reading.alert_above === null && reading.alert_below === null) return null;
+    if (reading.value === null) return null;
+    if (reading.alert_above !== null && reading.value > reading.alert_above) return 'above';
+    if (reading.alert_below !== null && reading.value < reading.alert_below) return 'below';
+    return 'ok';
+  }
+  if (reading.alert_state === null) return null;
+  return reading.state.toLowerCase() === reading.alert_state ? 'above' : 'ok';
+}
+
+export function locationSensorValueColorClass(
+  status: LocationSensorAlertStatus,
+  aboveColor: LocationSensorAlertColor,
+  belowColor: LocationSensorAlertColor,
+  optimalColor: LocationSensorAlertColor
+): string {
+  if (status === 'above') return LOCATION_SENSOR_ALERT_COLOR_CLASSES[aboveColor];
+  if (status === 'below') return LOCATION_SENSOR_ALERT_COLOR_CLASSES[belowColor];
+  if (status === 'ok') return LOCATION_SENSOR_ALERT_COLOR_CLASSES[optimalColor];
+  return '';
 }

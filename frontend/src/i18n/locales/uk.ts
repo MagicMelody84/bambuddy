@@ -1818,6 +1818,7 @@ export default {
     tabs: {
       general: "Загальні",
       smartPlugs: "Розумні розетки",
+      sensors: "Датчики",
       notifications: "Сповіщення",
       queue: "Робочий процес",
       queueDispatch: "Черга та відправка",
@@ -5780,10 +5781,12 @@ export default {
       colorizeValues: 'Розфарбовувати значення датчиків відповідно до порогів тривоги',
       aboveColor: 'Колір перевищення порогу',
       belowColor: 'Колір нижче порогу',
+      optimalColor: 'Колір оптимального значення',
       colors: {
         red: 'Червоний',
         orange: 'Помаранчевий',
         yellow: 'Жовтий',
+        green: 'Зелений',
         blue: 'Синій',
         purple: 'Фіолетовий',
         pink: 'Рожевий',
