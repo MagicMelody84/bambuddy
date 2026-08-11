@@ -2709,6 +2709,18 @@ function iconForLocationSensor(reading: LocationHASensorReading): LucideIcon {
   return LOCATION_SENSOR_ICONS[deviceClass] ?? (reading.kind === 'numeric' ? Gauge : Activity);
 }
 
+// Lucide glyphs don't fill their viewBox evenly — the thermometer glyph
+// leaves several pixels of empty space at its right edge, while droplets
+// and battery sit almost flush against theirs. A shared flex `gap` alone
+// therefore reads as a tighter icon-to-value gap for those two; this adds
+// back just enough margin (measured via getBBox()) so all three look equally
+// spaced next to their value.
+function locationSensorIconGapClass(deviceClass: string | null): string {
+  if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'mr-[2px]';
+  if (deviceClass === 'battery') return 'mr-[3px]';
+  return '';
+}
+
 function describeLocationSensor(
   reading: LocationHASensorReading,
   t: (key: string, opts?: Record<string, unknown>) => string
@@ -2779,8 +2791,8 @@ function SpoolLocationFooter({
         {otherReadings.map((reading) => {
           const Icon = iconForLocationSensor(reading);
           return (
-            <span key={reading.id} title={reading.name} className="flex items-center gap-1">
-              <Icon className="w-3 h-3" />
+            <span key={reading.id} title={reading.name} className="flex items-center gap-[3px]">
+              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(reading.device_class)}`} />
               <span className={locationSensorCellColor(reading, colorize, aboveColor, belowColor, optimalColor)}>
                 {describeLocationSensor(reading, t)}
               </span>
@@ -2792,8 +2804,8 @@ function SpoolLocationFooter({
         (() => {
           const Icon = iconForLocationSensor(batteryReading);
           return (
-            <span key={batteryReading.id} title={batteryReading.name} className="flex items-center gap-1 ml-auto">
-              <Icon className="w-3 h-3" />
+            <span key={batteryReading.id} title={batteryReading.name} className="flex items-center gap-[3px] ml-auto">
+              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(batteryReading.device_class)}`} />
               <span className={locationSensorCellColor(batteryReading, colorize, aboveColor, belowColor, optimalColor)}>
                 {describeLocationSensor(batteryReading, t)}
               </span>
