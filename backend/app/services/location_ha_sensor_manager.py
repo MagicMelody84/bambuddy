@@ -42,14 +42,19 @@ class LocationHASensorManager:
         self._last_alerting.pop(sensor_id, None)
 
     async def _poll_loop(self):
+        # Poll once immediately on start so a restart doesn't leave the cache
+        # empty (and the card/table views blank) for up to a full interval.
         while True:
             try:
-                await asyncio.sleep(await self._get_poll_interval())
                 await self.poll_once()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.warning("Home Assistant location-sensor poll failed: %s", e)
+            try:
+                await asyncio.sleep(await self._get_poll_interval())
+            except asyncio.CancelledError:
+                break
 
     async def _get_poll_interval(self) -> int:
         from backend.app.core.database import async_session
