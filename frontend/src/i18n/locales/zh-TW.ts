@@ -5724,6 +5724,8 @@ export default {
       buttonLabel: '感測器選項',
       title: '位置感測器選項',
       description: '當某個位置綁定第一個感測器時，若自動新增溫度、濕度或電池感測器，將使用這些預設值。',
+      pollInterval: '更新間隔（秒）',
+      pollIntervalHint: 'Bambuddy 輪詢 Home Assistant 並刷新畫面上感測器數值的頻率。最少 60 秒。',
       colorizeValues: '依警示閾值為感測器數值著色',
       aboveColor: '超過閾值的顏色',
       belowColor: '低於閾值的顏色',

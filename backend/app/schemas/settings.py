@@ -606,6 +606,14 @@ class AppSettings(BaseModel):
         description="Global lead time floor (days) used in reorder point calculation for all SKUs",
     )
 
+    # Location HA sensor polling
+    location_sensor_poll_interval: int = Field(
+        default=120,
+        ge=60,
+        le=3600,
+        description="Seconds between Home Assistant polls/UI refreshes for storage-location sensors",
+    )
+
     # Default sidebar order (admin-set for all users)
     default_sidebar_order: str = Field(
         default="",
@@ -748,6 +756,7 @@ class AppSettingsUpdate(BaseModel):
     obico_enabled_printers: str | None = None
     default_sidebar_order: str | None = None
     forecast_global_lead_time_days: int | None = Field(default=None, ge=0)
+    location_sensor_poll_interval: int | None = Field(default=None, ge=60, le=3600)
 
     @field_validator(*LAN_SERVICE_URL_SETTINGS)
     @classmethod

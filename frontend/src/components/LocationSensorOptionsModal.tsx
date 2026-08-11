@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Battery, Droplets, RotateCcw, Save, Settings2, Thermometer, X } from 'lucide-react';
 import { api } from '../api/client';
@@ -27,6 +27,9 @@ import {
 interface Props {
   onClose: () => void;
 }
+
+const MIN_POLL_INTERVAL = 60;
+const DEFAULT_POLL_INTERVAL = 120;
 
 const CATEGORY_ICONS: Record<LocationSensorCategory, typeof Thermometer> = {
   temperature: Thermometer,
@@ -147,21 +150,29 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   const [optimalColor, setOptimalColor] = useState<LocationSensorAlertColor>(() => loadLocationSensorAlertOptimalColor());
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
+  const { data: appSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const [pollInterval, setPollInterval] = useState(DEFAULT_POLL_INTERVAL);
+  useEffect(() => {
+    if (appSettings) setPollInterval(appSettings.location_sensor_poll_interval);
+  }, [appSettings]);
+
   const updateCategory = (category: LocationSensorCategory, patch: Partial<LocationSensorCategoryDefaults>) => {
     setDefaults((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
   };
 
-  const persistDefaults = () => {
+  const persistDefaults = async () => {
     saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
     saveLocationSensorColorizeValues(colorizeValues);
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
     saveLocationSensorAlertOptimalColor(optimalColor);
+    await api.updateSettings({ location_sensor_poll_interval: Math.max(MIN_POLL_INTERVAL, pollInterval) });
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    persistDefaults();
+    await persistDefaults();
     showToast(t('locationHaSensors.options.saved'), 'success');
     onClose();
   };
@@ -172,7 +183,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   // first so the values just applied also become the new auto-add defaults.
   const resetMutation = useMutation({
     mutationFn: async () => {
-      persistDefaults();
+      await persistDefaults();
       const sensors = await api.getLocationHASensors();
       const targets = sensors.filter((sensor) => categoryFor(sensor.device_class) !== null);
       await Promise.all(
@@ -240,6 +251,23 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
               state={defaults.battery}
               onChange={(patch) => updateCategory('battery', patch)}
             />
+          </div>
+
+          <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
+            <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
+              {t('locationHaSensors.options.pollInterval')}
+            </label>
+            <input
+              id="location-sensor-poll-interval"
+              type="number"
+              min={MIN_POLL_INTERVAL}
+              step="1"
+              value={pollInterval}
+              onChange={(e) => setPollInterval(Number(e.target.value))}
+              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
+            />
+            <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
           </div>
 
           <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-3">

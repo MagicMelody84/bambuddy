@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.location import Location
 from backend.app.models.location_ha_sensor import LocationHASensor
+from backend.app.models.settings import Settings
 from backend.app.services.ha_sensor_manager import SensorReading, describe_state, evaluate
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.utils.local_time import utcnow_naive
@@ -13,6 +14,7 @@ from backend.app.utils.local_time import utcnow_naive
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 120
+MIN_POLL_INTERVAL = 60
 
 
 class LocationHASensorManager:
@@ -42,12 +44,25 @@ class LocationHASensorManager:
     async def _poll_loop(self):
         while True:
             try:
-                await asyncio.sleep(POLL_INTERVAL)
+                await asyncio.sleep(await self._get_poll_interval())
                 await self.poll_once()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.warning("Home Assistant location-sensor poll failed: %s", e)
+
+    async def _get_poll_interval(self) -> int:
+        from backend.app.core.database import async_session
+
+        async with async_session() as db:
+            result = await db.execute(select(Settings).where(Settings.key == "location_sensor_poll_interval"))
+            row = result.scalar_one_or_none()
+        if row is None:
+            return POLL_INTERVAL
+        try:
+            return max(MIN_POLL_INTERVAL, int(row.value))
+        except (TypeError, ValueError):
+            return POLL_INTERVAL
 
     async def poll_once(self):
         from backend.app.core.database import async_session

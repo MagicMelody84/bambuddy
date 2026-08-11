@@ -5724,6 +5724,8 @@ export default {
       buttonLabel: 'Opções do sensor',
       title: 'Opções do Sensor de Local',
       description: 'Esses valores são usados quando um sensor de temperatura, umidade ou bateria é vinculado automaticamente junto com o primeiro sensor de um local.',
+      pollInterval: 'Intervalo de atualização (segundos)',
+      pollIntervalHint: 'Com que frequência o Bambuddy consulta o Home Assistant e atualiza os valores dos sensores na tela. Mínimo de 60 segundos.',
       colorizeValues: 'Colorir os valores dos sensores de acordo com seus limites de alerta',
       aboveColor: 'Cor acima do limite',
       belowColor: 'Cor abaixo do limite',

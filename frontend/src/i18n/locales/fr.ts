@@ -5725,6 +5725,8 @@ export default {
       buttonLabel: 'Options des capteurs',
       title: 'Options des capteurs d\'emplacement',
       description: 'Ces valeurs sont utilisées lorsqu\'un capteur de température, d\'humidité ou de batterie est lié automatiquement avec le premier capteur d\'un emplacement.',
+      pollInterval: "Intervalle de mise à jour (secondes)",
+      pollIntervalHint: "Fréquence à laquelle Bambuddy interroge Home Assistant et actualise les valeurs des capteurs à l'écran. Minimum 60 secondes.",
       colorizeValues: "Colorer les valeurs des capteurs selon leurs seuils d'alerte",
       aboveColor: 'Couleur au-dessus du seuil',
       belowColor: 'Couleur en dessous du seuil',

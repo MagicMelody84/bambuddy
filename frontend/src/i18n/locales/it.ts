@@ -5724,6 +5724,8 @@ export default {
       buttonLabel: 'Opzioni sensori',
       title: 'Opzioni sensori di posizione',
       description: 'Questi valori vengono usati quando un sensore di temperatura, umidità o batteria viene collegato automaticamente insieme al primo sensore di una posizione.',
+      pollInterval: 'Intervallo di aggiornamento (secondi)',
+      pollIntervalHint: 'Con quale frequenza Bambuddy interroga Home Assistant e aggiorna i valori dei sensori a schermo. Minimo 60 secondi.',
       colorizeValues: 'Colora i valori dei sensori in base alle relative soglie di allarme',
       aboveColor: 'Colore sopra la soglia',
       belowColor: 'Colore sotto la soglia',

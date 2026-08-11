@@ -5699,6 +5699,8 @@ export default {
       buttonLabel: 'Sensör seçenekleri',
       title: 'Konum Sensörü Seçenekleri',
       description: 'Bu değerler, bir konumun ilk sensörüyle birlikte bir sıcaklık, nem veya pil sensörü otomatik olarak bağlandığında kullanılır.',
+      pollInterval: "Güncelleme aralığı (saniye)",
+      pollIntervalHint: "Bambuddy'nin Home Assistant'ı ne sıklıkla sorgulayıp ekrandaki sensör değerlerini güncellediği. Minimum 60 saniye.",
       colorizeValues: 'Sensör değerlerini uyarı eşiklerine göre renklendir',
       aboveColor: 'Eşik üstü rengi',
       belowColor: 'Eşik altı rengi',

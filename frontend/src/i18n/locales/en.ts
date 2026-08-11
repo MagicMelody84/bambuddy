@@ -5785,6 +5785,8 @@ export default {
       buttonLabel: 'Sensor options',
       title: 'Location Sensor Options',
       description: 'These values are used when a temperature, humidity, or battery sensor is bound automatically alongside the first sensor for a location.',
+      pollInterval: 'Update interval (seconds)',
+      pollIntervalHint: 'How often Bambuddy polls Home Assistant and refreshes sensor values on screen. Minimum 60 seconds.',
       colorizeValues: 'Colorize sensor values against their alert thresholds',
       aboveColor: 'Above threshold color',
       belowColor: 'Below threshold color',

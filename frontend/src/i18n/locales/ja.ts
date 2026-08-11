@@ -5736,6 +5736,8 @@ export default {
       buttonLabel: 'センサーオプション',
       title: '保管場所センサーのオプション',
       description: 'この値は、保管場所の最初のセンサーと一緒に温度・湿度・バッテリーセンサーが自動的に連携される際に使用されます。',
+      pollInterval: '更新間隔（秒）',
+      pollIntervalHint: 'Bambuddyがホームアシスタントに問い合わせて画面上のセンサー値を更新する頻度です。最小60秒。',
       colorizeValues: 'アラートしきい値に応じてセンサー値を色分け表示',
       aboveColor: 'しきい値超過時の色',
       belowColor: 'しきい値未満時の色',

@@ -5465,6 +5465,8 @@ export default {
       buttonLabel: '센서 옵션',
       title: '위치 센서 옵션',
       description: '이 값은 위치의 첫 번째 센서와 함께 온도, 습도 또는 배터리 센서가 자동으로 연결될 때 사용됩니다.',
+      pollInterval: '업데이트 간격(초)',
+      pollIntervalHint: 'Bambuddy가 Home Assistant를 폴링하여 화면의 센서 값을 갱신하는 주기입니다. 최소 60초.',
       colorizeValues: '경보 임계값에 따라 센서 값에 색상 표시',
       aboveColor: '임계값 초과 색상',
       belowColor: '임계값 미만 색상',

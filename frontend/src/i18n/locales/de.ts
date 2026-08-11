@@ -5735,6 +5735,8 @@ export default {
       buttonLabel: 'Sensor-Optionen',
       title: 'Lagerort-Sensor-Optionen',
       description: 'Diese Werte werden verwendet, wenn ein Temperatur-, Luftfeuchtigkeits- oder Batteriesensor automatisch zusammen mit dem ersten Sensor eines Lagerorts gebunden wird.',
+      pollInterval: 'Aktualisierungsintervall (Sekunden)',
+      pollIntervalHint: 'Wie oft Bambuddy Home Assistant abfragt und die Sensorwerte auf dem Bildschirm aktualisiert. Minimum 60 Sekunden.',
       colorizeValues: 'Sensorwerte anhand ihrer Alarmschwellen farbig darstellen',
       aboveColor: 'Farbe für Überschreitung',
       belowColor: 'Farbe für Unterschreitung',

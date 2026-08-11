@@ -5724,6 +5724,8 @@ export default {
       buttonLabel: '传感器选项',
       title: '位置传感器选项',
       description: '当某个位置绑定第一个传感器时，若自动添加温度、湿度或电池传感器，将使用这些默认值。',
+      pollInterval: '更新间隔（秒）',
+      pollIntervalHint: 'Bambuddy 轮询 Home Assistant 并刷新屏幕上传感器数值的频率。最少 60 秒。',
       colorizeValues: '根据警报阈值为传感器数值着色',
       aboveColor: '超过阈值的颜色',
       belowColor: '低于阈值的颜色',

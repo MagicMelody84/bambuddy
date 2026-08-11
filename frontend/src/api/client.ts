@@ -1384,6 +1384,8 @@ export interface AppSettings {
   obico_enabled_printers: string;
   // Inventory forecasting global lead time
   forecast_global_lead_time_days: number;
+  // Location HA sensor polling
+  location_sensor_poll_interval: number;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;

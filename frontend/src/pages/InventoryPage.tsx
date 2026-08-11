@@ -653,6 +653,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   });
 
   const dateFormat: DateFormat = settings?.date_format || 'system';
+  const locationSensorPollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
 
   const [colorizeLocationSensors] = useState(() => loadLocationSensorColorizeValues());
   const [locationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
@@ -1164,7 +1165,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queries: usedLocationIds.map((locationId) => ({
       queryKey: ['locationHaSensorReadings', locationId, 'all'],
       queryFn: () => api.getLocationHASensorReadings(locationId, false),
-      refetchInterval: 120000,
+      refetchInterval: locationSensorPollIntervalMs,
     })),
   });
 
@@ -2748,10 +2749,13 @@ function SpoolLocationFooter({
   const [belowColor] = useState(() => loadLocationSensorAlertBelowColor());
   const [optimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
 
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const pollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
+
   const { data: readings } = useQuery({
     queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
     queryFn: () => api.getLocationHASensorReadings(locationId),
-    refetchInterval: 120000,
+    refetchInterval: pollIntervalMs,
   });
 
   if (!readings?.length) return null;

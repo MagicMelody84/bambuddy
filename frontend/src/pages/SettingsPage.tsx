@@ -534,7 +534,7 @@ export function SettingsPage() {
   const { data: locationHaSensors } = useQuery({
     queryKey: ['locationHaSensors'],
     queryFn: () => api.getLocationHASensors(),
-    refetchInterval: 120000,
+    refetchInterval: (settings?.location_sensor_poll_interval || 120) * 1000,
   });
 
   const { data: haSensorLocations } = useQuery({

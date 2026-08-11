@@ -245,6 +245,44 @@ class TestCascadeAndUniqueness:
         assert listed.json() == []
 
 
+class TestPollInterval:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_defaults_to_120_seconds(self, async_client: AsyncClient):
+        interval = await location_ha_sensor_manager._get_poll_interval()
+
+        assert interval == 120
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_reads_the_configured_value(self, async_client: AsyncClient):
+        response = await async_client.put("/api/v1/settings/", json={"location_sensor_poll_interval": 300})
+        assert response.status_code == 200
+
+        interval = await location_ha_sensor_manager._get_poll_interval()
+
+        assert interval == 300
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_rejects_a_value_below_the_60s_minimum(self, async_client: AsyncClient):
+        response = await async_client.put("/api/v1/settings/", json={"location_sensor_poll_interval": 30})
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_clamps_a_stored_value_below_the_minimum(self, async_client: AsyncClient, db_session):
+        from backend.app.models.settings import Settings
+
+        db_session.add(Settings(key="location_sensor_poll_interval", value="10"))
+        await db_session.commit()
+
+        interval = await location_ha_sensor_manager._get_poll_interval()
+
+        assert interval == 60
+
+
 class TestSaveSurvivesHomeAssistant:
     @pytest.mark.asyncio
     @pytest.mark.integration

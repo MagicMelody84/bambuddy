@@ -14,12 +14,16 @@ vi.mock('../../api/client', async () => {
       ...actual.api,
       getLocationHASensors: vi.fn(),
       updateLocationHASensor: vi.fn(),
+      getSettings: vi.fn(),
+      updateSettings: vi.fn(),
     },
   };
 });
 
 const getLocationSensors = vi.mocked(api.getLocationHASensors);
 const updateSensor = vi.mocked(api.updateLocationHASensor);
+const getSettings = vi.mocked(api.getSettings);
+const updateSettings = vi.mocked(api.updateSettings);
 
 describe('LocationSensorOptionsModal', () => {
   beforeEach(() => {
@@ -27,6 +31,10 @@ describe('LocationSensorOptionsModal', () => {
     vi.mocked(window.localStorage.setItem).mockReset();
     getLocationSensors.mockReset();
     updateSensor.mockReset();
+    getSettings.mockReset();
+    updateSettings.mockReset();
+    getSettings.mockResolvedValue({ location_sensor_poll_interval: 120 } as never);
+    updateSettings.mockResolvedValue({} as never);
   });
 
   it('shows a section for each of the three auto-add categories', async () => {
@@ -64,7 +72,7 @@ describe('LocationSensorOptionsModal', () => {
 
     expect(screen.getAllByText(/^Above (°C|%)$/)).toHaveLength(2);
     expect(screen.getAllByText(/^Below (°C|%)$/)).toHaveLength(3);
-    expect(screen.getAllByRole('spinbutton')).toHaveLength(5);
+    expect(screen.getAllByRole('spinbutton')).toHaveLength(6);
   });
 
   it('clears a stale saved "above" value for battery on save', async () => {
@@ -101,6 +109,37 @@ describe('LocationSensorOptionsModal', () => {
     expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-above-color', 'orange');
     expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-below-color', 'purple');
     expect(window.localStorage.setItem).toHaveBeenCalledWith('bambuddy-location-sensor-alert-optimal-color', 'blue');
+  });
+
+  it('loads the current poll interval and saves a changed value', async () => {
+    getSettings.mockResolvedValue({ location_sensor_poll_interval: 300 } as never);
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={() => {}} />);
+
+    const input = await screen.findByLabelText(/update interval/i);
+    await waitFor(() => expect(input).toHaveValue(300));
+
+    await user.clear(input);
+    await user.type(input, '90');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ location_sensor_poll_interval: 90 }))
+    );
+  });
+
+  it('clamps a poll interval below the 60s minimum on blur', async () => {
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={() => {}} />);
+
+    const input = await screen.findByLabelText(/update interval/i);
+    await waitFor(() => expect(input).toHaveValue(120));
+
+    await user.clear(input);
+    await user.type(input, '10');
+    await user.tab();
+
+    expect(input).toHaveValue(60);
   });
 
   it('disables the color pickers when colorizing is turned off', async () => {
