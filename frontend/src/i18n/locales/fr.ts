@@ -5743,7 +5743,7 @@ export default {
       resetConfirm: {
         title: 'Réinitialiser tous les capteurs d\'emplacement existants ?',
         message:
-          'Cela écrase les seuils d\'alerte, les notifications et la visibilité sur la carte de tous les capteurs de température, d\'humidité et de batterie d\'emplacement existants avec les valeurs configurées ci-dessus — les capteurs d\'imprimante ne sont pas concernés. Cette action est irréversible.',
+          'Cela écrase les seuils d\'alerte, les notifications et la visibilité sur la carte de tous les capteurs de température, d\'humidité et de batterie d\'emplacement existants avec les valeurs configurées ci-dessus — les capteurs d\'imprimante ne sont pas concernés. Cette action est irréversible. Selon le nombre de capteurs, cela peut prendre un moment.',
       },
       resetDone: 'Appliqué à {{count}} capteurs d\'emplacement',
       resetFailed: 'Échec de la réinitialisation des capteurs d\'emplacement',

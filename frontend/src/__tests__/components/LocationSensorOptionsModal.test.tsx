@@ -142,6 +142,13 @@ describe('LocationSensorOptionsModal', () => {
     expect(updateSensor).toHaveBeenCalledWith(1, expect.objectContaining({ alert_above: 30 }));
     expect(updateSensor).toHaveBeenCalledWith(3, expect.objectContaining({ alert_above: null }));
     expect(onClose).toHaveBeenCalled();
+
+    // The on-screen values (not yet saved via the Save button) must be
+    // persisted before the bulk apply, so future auto-added sensors use them too.
+    expect(window.localStorage.setItem).toHaveBeenCalledWith(
+      'bambuddy-location-sensor-auto-add-defaults',
+      expect.stringContaining('"alertAbove":"30"')
+    );
   });
 
   it('does not overwrite anything when the reset confirmation is cancelled', async () => {

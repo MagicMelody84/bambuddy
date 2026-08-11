@@ -12,7 +12,7 @@ from backend.app.utils.local_time import utcnow_naive
 
 logger = logging.getLogger(__name__)
 
-POLL_INTERVAL = 15
+POLL_INTERVAL = 60
 
 
 class LocationHASensorManager:

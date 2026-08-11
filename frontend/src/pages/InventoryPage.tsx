@@ -121,9 +121,26 @@ function loadColumnConfig(): ColumnConfig[] {
       const storedIds = new Set(parsed.map((c) => c.id));
       // Keep stored columns that still exist in defaults
       const validStored = parsed.filter((c) => defaultIds.has(c.id));
-      // Add any new default columns not in stored config
-      const newColumns = DEFAULT_COLUMNS.filter((c) => !storedIds.has(c.id));
-      return [...validStored, ...newColumns];
+      // Add any new default columns not in stored config, inserting each
+      // right after its nearest preceding sibling from DEFAULT_COLUMNS (not
+      // dumped at the end) so a newly shipped column (e.g. Battery alongside
+      // Temperature/Humidity) lands next to its intended neighbors for
+      // users who already had a saved column config.
+      const merged = [...validStored];
+      for (const col of DEFAULT_COLUMNS) {
+        if (storedIds.has(col.id)) continue;
+        const defaultIndex = DEFAULT_COLUMNS.indexOf(col);
+        let insertAt = merged.length;
+        for (let i = defaultIndex - 1; i >= 0; i--) {
+          const idx = merged.findIndex((c) => c.id === DEFAULT_COLUMNS[i].id);
+          if (idx !== -1) {
+            insertAt = idx + 1;
+            break;
+          }
+        }
+        merged.splice(insertAt, 0, col);
+      }
+      return merged;
     }
   } catch {
     // Ignore errors
@@ -1147,7 +1164,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queries: usedLocationIds.map((locationId) => ({
       queryKey: ['locationHaSensorReadings', locationId, 'all'],
       queryFn: () => api.getLocationHASensorReadings(locationId, false),
-      refetchInterval: 15000,
+      refetchInterval: 60000,
     })),
   });
 
@@ -2698,7 +2715,8 @@ function describeLocationSensor(
   if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
   if (reading.kind === 'numeric') {
     if (reading.value === null) return reading.state;
-    return reading.unit ? `${reading.value} ${reading.unit}` : String(reading.value);
+    const formatted = reading.value.toFixed(2);
+    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
   }
   const labels = LOCATION_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
   const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
@@ -2733,7 +2751,7 @@ function SpoolLocationFooter({
   const { data: readings } = useQuery({
     queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
     queryFn: () => api.getLocationHASensorReadings(locationId),
-    refetchInterval: 15000,
+    refetchInterval: 60000,
   });
 
   if (!readings?.length) return null;

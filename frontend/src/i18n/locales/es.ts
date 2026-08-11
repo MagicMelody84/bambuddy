@@ -5761,7 +5761,7 @@ export default {
       resetConfirm: {
         title: '¿Restablecer todos los sensores de ubicación existentes?',
         message:
-          'Esto sobrescribe los umbrales de alerta, las notificaciones y la visibilidad en la tarjeta de todos los sensores de temperatura, humedad y batería de ubicaciones existentes con los valores configurados arriba; los sensores de impresora no se ven afectados. Esto no se puede deshacer.',
+          'Esto sobrescribe los umbrales de alerta, las notificaciones y la visibilidad en la tarjeta de todos los sensores de temperatura, humedad y batería de ubicaciones existentes con los valores configurados arriba; los sensores de impresora no se ven afectados. Esto no se puede deshacer. Dependiendo de cuántos sensores tenga, esto puede tardar un momento.',
       },
       resetDone: 'Aplicado a {{count}} sensores de ubicación',
       resetFailed: 'No se pudieron restablecer los sensores de ubicación',

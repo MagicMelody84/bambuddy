@@ -5717,7 +5717,7 @@ export default {
       resetConfirm: {
         title: 'Mevcut tüm konum sensörleri sıfırlansın mı?',
         message:
-          'Bu işlem, mevcut tüm konum sıcaklık, nem ve pil sensörlerinin uyarı eşiklerini, bildirimlerini ve kart görünürlüğünü yukarıda yapılandırılan değerlerle üzerine yazar — yazıcı sensörleri etkilenmez. Bu işlem geri alınamaz.',
+          'Bu işlem, mevcut tüm konum sıcaklık, nem ve pil sensörlerinin uyarı eşiklerini, bildirimlerini ve kart görünürlüğünü yukarıda yapılandırılan değerlerle üzerine yazar — yazıcı sensörleri etkilenmez. Bu işlem geri alınamaz. Sensör sayısına bağlı olarak bu işlem biraz zaman alabilir.',
       },
       resetDone: '{{count}} konum sensörüne uygulandı',
       resetFailed: 'Konum sensörleri sıfırlanamadı',

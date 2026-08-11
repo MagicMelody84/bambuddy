@@ -151,22 +151,28 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
     setDefaults((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
+  const persistDefaults = () => {
     saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
     saveLocationSensorColorizeValues(colorizeValues);
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
     saveLocationSensorAlertOptimalColor(optimalColor);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    persistDefaults();
     showToast(t('locationHaSensors.options.saved'), 'success');
     onClose();
   };
 
   // Overwrites every existing sensor of a matching category with the values
   // configured above — a bulk apply, not a per-sensor edit, so it's guarded
-  // by a confirmation the caller can't undo.
+  // by a confirmation the caller can't undo. The fields on screen are saved
+  // first so the values just applied also become the new auto-add defaults.
   const resetMutation = useMutation({
     mutationFn: async () => {
+      persistDefaults();
       const sensors = await api.getLocationHASensors();
       const targets = sensors.filter((sensor) => categoryFor(sensor.device_class) !== null);
       await Promise.all(

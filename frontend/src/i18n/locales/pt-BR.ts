@@ -5742,7 +5742,7 @@ export default {
       resetConfirm: {
         title: 'Redefinir todos os sensores de local existentes?',
         message:
-          'Isso sobrescreve os limites de alerta, notificações e visibilidade no cartão de todos os sensores de temperatura, umidade e bateria de locais existentes com os valores configurados acima — os sensores de impressora não são afetados. Isso não pode ser desfeito.',
+          'Isso sobrescreve os limites de alerta, notificações e visibilidade no cartão de todos os sensores de temperatura, umidade e bateria de locais existentes com os valores configurados acima — os sensores de impressora não são afetados. Isso não pode ser desfeito. Dependendo da quantidade de sensores, isso pode levar um momento.',
       },
       resetDone: 'Aplicado a {{count}} sensores de local',
       resetFailed: 'Falha ao redefinir os sensores de local',
