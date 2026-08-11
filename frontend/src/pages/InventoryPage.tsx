@@ -1164,7 +1164,7 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     queries: usedLocationIds.map((locationId) => ({
       queryKey: ['locationHaSensorReadings', locationId, 'all'],
       queryFn: () => api.getLocationHASensorReadings(locationId, false),
-      refetchInterval: 60000,
+      refetchInterval: 120000,
     })),
   });
 
@@ -2751,7 +2751,7 @@ function SpoolLocationFooter({
   const { data: readings } = useQuery({
     queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
     queryFn: () => api.getLocationHASensorReadings(locationId),
-    refetchInterval: 60000,
+    refetchInterval: 120000,
   });
 
   if (!readings?.length) return null;

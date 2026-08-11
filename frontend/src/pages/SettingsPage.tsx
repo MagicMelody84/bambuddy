@@ -534,7 +534,7 @@ export function SettingsPage() {
   const { data: locationHaSensors } = useQuery({
     queryKey: ['locationHaSensors'],
     queryFn: () => api.getLocationHASensors(),
-    refetchInterval: 60000,
+    refetchInterval: 120000,
   });
 
   const { data: haSensorLocations } = useQuery({
@@ -4008,7 +4008,7 @@ export function SettingsPage() {
                             return (
                               <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
                                 <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
-                                {value && <span className={`${valueColor} shrink-0 w-[52px]`}>{value}</span>}
+                                {value && <span className={`${valueColor} shrink-0 w-[52px] text-center`}>{value}</span>}
                                 {value && <span className="shrink-0 mr-1.5">-</span>}
                                 <span className="truncate mr-1.5">{sensor.name}</span>
                                 <button
