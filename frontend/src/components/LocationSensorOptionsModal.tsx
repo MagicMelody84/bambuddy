@@ -232,7 +232,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-6 space-y-4">
+        <form onSubmit={handleSave} className="px-6 pb-6 pt-3 space-y-4">
           <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.description')}</p>
 
           <div className="space-y-3">
