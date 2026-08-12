@@ -91,6 +91,7 @@ EVENT_VARIABLES: dict[str, list[str]] = {
     ],
     "bed_cooled": ["printer", "bed_temp", "threshold", "filename", "timestamp", "app_name"],
     "ha_sensor_alert": ["printer", "sensor", "state", "timestamp", "app_name"],
+    "location_ha_sensor_alert": ["location", "sensor", "state", "timestamp", "app_name"],
     "test": ["app_name", "timestamp"],
     # Queue notifications
     "queue_job_added": ["job_name", "target", "timestamp", "app_name"],

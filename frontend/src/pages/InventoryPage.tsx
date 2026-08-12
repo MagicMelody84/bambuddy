@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Loader2, Trash2, Archive, RotateCcw, Edit2, Package,
@@ -8,10 +8,12 @@ import {
   TrendingDown, Layers, Printer, AlertTriangle, X, Clock, LayoutGrid, TableProperties, Columns,
   ArrowUp, ArrowDown, ArrowUpDown, Group, ChevronDown, Check, RefreshCw, TrendingUp, Lock, Copy, Eraser, MapPin,
   Upload, Download,
+  Activity, Battery, DoorClosed, DoorOpen, Droplets, Gauge, LockOpen, Thermometer, Wind,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { api, spoolbuddyApi, ApiError } from '../api/client';
-import type { InventorySpool, SpoolCatalogEntry } from '../api/client';
+import type { InventorySpool, SpoolCatalogEntry, LocationHASensorReading } from '../api/client';
 import { Button } from '../components/Button';
 import { FilamentSwatch } from '../components/FilamentSwatch';
 import { buildFilamentBackground } from '../components/filamentSwatchHelpers';
@@ -34,6 +36,15 @@ import {
   invalidateSpoolAndLocationQueries,
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
+import {
+  loadLocationSensorAlertAboveColor,
+  loadLocationSensorAlertBelowColor,
+  loadLocationSensorAlertOptimalColor,
+  loadLocationSensorColorizeValues,
+  locationSensorReadingAlertStatus,
+  locationSensorValueColorClass,
+  type LocationSensorAlertColor,
+} from '../utils/locationSensorDefaults';
 
 type ArchiveFilter = 'active' | 'archived';
 type UsageFilter = 'all' | 'used' | 'new' | 'lowstock';
@@ -79,6 +90,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'slicer_filament', label: 'Slicer Filament', visible: false },
   { id: 'location', label: 'Location', visible: true },
   { id: 'storage_location', label: 'Storage Location', visible: false },
+  { id: 'temperature', label: 'Temperature', visible: false },
+  { id: 'humidity', label: 'Humidity', visible: false },
+  { id: 'battery', label: 'Battery', visible: false },
   { id: 'label_weight', label: 'Label', visible: true },
   { id: 'net', label: 'Net', visible: true },
   { id: 'gross', label: 'Gross', visible: false },
@@ -107,9 +121,21 @@ function loadColumnConfig(): ColumnConfig[] {
       const storedIds = new Set(parsed.map((c) => c.id));
       // Keep stored columns that still exist in defaults
       const validStored = parsed.filter((c) => defaultIds.has(c.id));
-      // Add any new default columns not in stored config
-      const newColumns = DEFAULT_COLUMNS.filter((c) => !storedIds.has(c.id));
-      return [...validStored, ...newColumns];
+      const merged = [...validStored];
+      for (const col of DEFAULT_COLUMNS) {
+        if (storedIds.has(col.id)) continue;
+        const defaultIndex = DEFAULT_COLUMNS.indexOf(col);
+        let insertAt = merged.length;
+        for (let i = defaultIndex - 1; i >= 0; i--) {
+          const idx = merged.findIndex((c) => c.id === DEFAULT_COLUMNS[i].id);
+          if (idx !== -1) {
+            insertAt = idx + 1;
+            break;
+          }
+        }
+        merged.splice(insertAt, 0, col);
+      }
+      return merged;
     }
   } catch {
     // Ignore errors
@@ -168,10 +194,15 @@ type CellCtx = {
   pct: number;
   assignmentMap: Record<number, LocationDisplay>;
   catalogMap: Record<number, SpoolCatalogEntry>;
+  locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
 };
 
 // Column header labels (25 columns — matching SpoolBuddy exactly)
@@ -188,6 +219,9 @@ const columnHeaders: Record<string, (t: TFn) => string> = {
   slicer_filament: (t) => t('inventory.slicerFilament'),
   location: () => 'Location',
   storage_location: (t) => t('inventory.storageLocation'),
+  temperature: (t) => t('inventory.temperature'),
+  humidity: (t) => t('inventory.humidity'),
+  battery: (t) => t('inventory.battery'),
   label_weight: (t) => t('inventory.labelWeight'),
   net: (t) => t('inventory.net'),
   gross: () => 'Gross',
@@ -267,6 +301,39 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
     return (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
         {spool.storage_location}
+      </span>
+    );
+  },
+  temperature: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
+    const reading = spool.location_id
+      ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'temperature')
+      : undefined;
+    if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
+      </span>
+    );
+  },
+  humidity: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
+    const reading = spool.location_id
+      ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'humidity' || r.device_class === 'moisture')
+      : undefined;
+    if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
+      </span>
+    );
+  },
+  battery: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
+    const reading = spool.location_id
+      ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'battery')
+      : undefined;
+    if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
+    return (
+      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+        {describeLocationSensor(reading, t)}
       </span>
     );
   },
@@ -404,7 +471,14 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
 };
 
 // Sort value extractors — return a comparable value for each sortable column
-const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Record<number, LocationDisplay>) => string | number> = {
+const columnSortValues: Record<
+  string,
+  (
+    spool: InventorySpool,
+    assignmentMap: Record<number, LocationDisplay>,
+    locationReadingsMap: Record<number, LocationHASensorReading[]>
+  ) => string | number
+> = {
   id: (s) => s.id,
   added_time: (s) => s.created_at || '',
   encode_time: (s) => s.encode_time || '',
@@ -442,6 +516,18 @@ const columnSortValues: Record<string, (spool: InventorySpool, assignmentMap: Re
     if (s.last_scale_weight == null) return -1;
     const expectedGross = Math.max(0, s.label_weight - s.weight_used) + s.core_weight;
     return Math.abs(s.last_scale_weight - expectedGross);
+  },
+  temperature: (s, _am, lrm) => {
+    const readings = s.location_id ? lrm[s.location_id] : undefined;
+    return readings?.find((r) => r.device_class === 'temperature')?.value ?? -Infinity;
+  },
+  humidity: (s, _am, lrm) => {
+    const readings = s.location_id ? lrm[s.location_id] : undefined;
+    return readings?.find((r) => r.device_class === 'humidity' || r.device_class === 'moisture')?.value ?? -Infinity;
+  },
+  battery: (s, _am, lrm) => {
+    const readings = s.location_id ? lrm[s.location_id] : undefined;
+    return readings?.find((r) => r.device_class === 'battery')?.value ?? -Infinity;
   },
 };
 
@@ -562,6 +648,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   });
 
   const dateFormat: DateFormat = settings?.date_format || 'system';
+  const locationSensorPollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
+
+  const [colorizeLocationSensors] = useState(() => loadLocationSensorColorizeValues());
+  const [locationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [locationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [locationSensorOptimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
 
   // Query key and fetch function differ based on data source
   const spoolsQueryKey = spoolmanMode ? ['spoolman-inventory-spools'] : ['inventory-spools'];
@@ -1056,6 +1148,31 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     return map;
   }, [catalogEntries]);
 
+  const usedLocationIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const s of spools || []) {
+      if (s.location_id) ids.add(s.location_id);
+    }
+    return Array.from(ids);
+  }, [spools]);
+
+  const locationReadingsQueries = useQueries({
+    queries: usedLocationIds.map((locationId) => ({
+      queryKey: ['locationHaSensorReadings', locationId, 'all'],
+      queryFn: () => api.getLocationHASensorReadings(locationId, false),
+      refetchInterval: locationSensorPollIntervalMs,
+    })),
+  });
+
+  const locationReadingsMap = useMemo(() => {
+    const map: Record<number, LocationHASensorReading[]> = {};
+    usedLocationIds.forEach((locationId, i) => {
+      const data = locationReadingsQueries[i]?.data;
+      if (data) map[locationId] = data;
+    });
+    return map;
+  }, [usedLocationIds, locationReadingsQueries]);
+
   // Top materials by weight for stat card pills
   const topMaterials = useMemo(() => {
     if (!stats) return [];
@@ -1209,14 +1326,14 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     const extractor = columnSortValues[sortState.column];
     if (!extractor) return filteredSpools;
     const sorted = [...filteredSpools].sort((a, b) => {
-      const va = extractor(a, assignmentMap);
-      const vb = extractor(b, assignmentMap);
+      const va = extractor(a, assignmentMap, locationReadingsMap);
+      const vb = extractor(b, assignmentMap, locationReadingsMap);
       if (va < vb) return sortState.direction === 'asc' ? -1 : 1;
       if (va > vb) return sortState.direction === 'asc' ? 1 : -1;
       return 0;
     });
     return sorted;
-  }, [filteredSpools, sortState, assignmentMap]);
+  }, [filteredSpools, sortState, assignmentMap, locationReadingsMap]);
 
   // Group similar spools when toggle is active
   const displayItems = useMemo((): DisplayItem[] => {
@@ -2083,10 +2200,15 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                           visibleColumns={visibleColumns}
                           assignmentMap={assignmentMap}
                           catalogMap={catalogMap}
+                          locationReadingsMap={locationReadingsMap}
                           currencySymbol={currencySymbol}
                           dateFormat={dateFormat}
                           t={t}
                           onSyncWeight={handleSyncWeight}
+                          colorizeLocationSensors={colorizeLocationSensors}
+                          locationSensorAboveColor={locationSensorAboveColor}
+                          locationSensorBelowColor={locationSensorBelowColor}
+                          locationSensorOptimalColor={locationSensorOptimalColor}
                         />
                       );
                     }
@@ -2111,10 +2233,15 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                         visibleColumns={visibleColumns}
                         assignmentMap={assignmentMap}
                         catalogMap={catalogMap}
+                        locationReadingsMap={locationReadingsMap}
                         currencySymbol={currencySymbol}
                         dateFormat={dateFormat}
                         t={t}
                         onSyncWeight={handleSyncWeight}
+                        colorizeLocationSensors={colorizeLocationSensors}
+                        locationSensorAboveColor={locationSensorAboveColor}
+                        locationSensorBelowColor={locationSensorBelowColor}
+                        locationSensorOptimalColor={locationSensorOptimalColor}
                       />
                     );
                   })}
@@ -2504,9 +2631,16 @@ function SpoolCard({
             </span>
           </div>
         </div>
+        {spool.location_id && (
+          <SpoolLocationFooter
+            locationId={spool.location_id}
+            locationName={spool.storage_location ?? null}
+            isLast={!spool.note}
+          />
+        )}
         {spool.note && (
           <div
-            className="text-xs text-bambu-gray/60 pt-2 border-t border-bambu-dark-tertiary truncate"
+            className="text-xs text-bambu-gray/60 pt-3 border-t border-bambu-dark-tertiary truncate"
             title={spool.note}
           >
             {spool.note}
@@ -2517,11 +2651,167 @@ function SpoolCard({
   );
 }
 
+const LOCATION_SENSOR_BINARY_LABELS: Record<string, { on: string; off: string }> = {
+  door: { on: 'open', off: 'closed' },
+  garage_door: { on: 'open', off: 'closed' },
+  window: { on: 'open', off: 'closed' },
+  opening: { on: 'open', off: 'closed' },
+  lock: { on: 'unlocked', off: 'locked' },
+  motion: { on: 'detected', off: 'clear' },
+  occupancy: { on: 'detected', off: 'clear' },
+  presence: { on: 'detected', off: 'clear' },
+  smoke: { on: 'detected', off: 'clear' },
+  gas: { on: 'detected', off: 'clear' },
+  moisture: { on: 'wet', off: 'dry' },
+  problem: { on: 'problem', off: 'ok' },
+  safety: { on: 'problem', off: 'ok' },
+  running: { on: 'running', off: 'stopped' },
+};
+
+const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
+  temperature: 0,
+  humidity: 1,
+  moisture: 1,
+  battery: 2,
+};
+
+const LOCATION_SENSOR_ICONS: Record<string, LucideIcon> = {
+  door: DoorOpen,
+  garage_door: DoorOpen,
+  window: DoorOpen,
+  opening: DoorOpen,
+  lock: LockOpen,
+  temperature: Thermometer,
+  humidity: Droplets,
+  moisture: Droplets,
+  battery: Battery,
+  motion: Activity,
+  occupancy: Activity,
+  presence: Activity,
+  smoke: AlertTriangle,
+  gas: AlertTriangle,
+  problem: AlertTriangle,
+  safety: AlertTriangle,
+  running: Wind,
+};
+
+function iconForLocationSensor(reading: LocationHASensorReading): LucideIcon {
+  const deviceClass = reading.device_class ?? '';
+  if (reading.state === 'off') {
+    if (LOCATION_SENSOR_ICONS[deviceClass] === DoorOpen) return DoorClosed;
+    if (LOCATION_SENSOR_ICONS[deviceClass] === LockOpen) return Lock;
+  }
+  return LOCATION_SENSOR_ICONS[deviceClass] ?? (reading.kind === 'numeric' ? Gauge : Activity);
+}
+
+function locationSensorIconGapClass(deviceClass: string | null): string {
+  if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'mr-[2px]';
+  if (deviceClass === 'battery') return 'mr-[3px]';
+  return '';
+}
+
+function describeLocationSensor(
+  reading: LocationHASensorReading,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
+  if (reading.kind === 'numeric') {
+    if (reading.value === null) return reading.state;
+    const formatted = reading.value.toFixed(2);
+    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
+  }
+  const labels = LOCATION_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
+  const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
+  return t(`haSensors.states.${key}`, { defaultValue: key });
+}
+
+function locationSensorCellColor(
+  reading: LocationHASensorReading,
+  colorize: boolean,
+  aboveColor: LocationSensorAlertColor,
+  belowColor: LocationSensorAlertColor,
+  optimalColor: LocationSensorAlertColor
+): string {
+  if (!colorize) return 'text-bambu-gray';
+  const status = locationSensorReadingAlertStatus(reading);
+  return locationSensorValueColorClass(status, aboveColor, belowColor, optimalColor) || 'text-bambu-gray';
+}
+
+function SpoolLocationFooter({
+  locationId, locationName, isLast,
+}: {
+  locationId: number;
+  locationName: string | null;
+  isLast: boolean;
+}) {
+  const { t } = useTranslation();
+  const [colorize] = useState(() => loadLocationSensorColorizeValues());
+  const [aboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [belowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [optimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
+
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
+  const pollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
+
+  const { data: readings } = useQuery({
+    queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
+    queryFn: () => api.getLocationHASensorReadings(locationId),
+    refetchInterval: pollIntervalMs,
+  });
+
+  if (!readings?.length) return null;
+
+  const batteryReading = readings.find((r) => r.device_class === 'battery');
+  const otherReadings = readings
+    .filter((r) => r.device_class !== 'battery')
+    .sort(
+      (a, b) =>
+        (LOCATION_SENSOR_CATEGORY_ORDER[a.device_class ?? ''] ?? 99) -
+        (LOCATION_SENSOR_CATEGORY_ORDER[b.device_class ?? ''] ?? 99)
+    );
+
+  return (
+    <div
+      className={`flex items-center gap-2 pt-3 border-t border-bambu-dark-tertiary text-xs text-bambu-gray ${isLast ? '-mb-1' : ''}`}
+    >
+      {locationName && <span className="truncate">{locationName}</span>}
+      <span className="text-bambu-gray/40">|</span>
+      <div className="flex items-center gap-3">
+        {otherReadings.map((reading, index) => {
+          const Icon = iconForLocationSensor(reading);
+          const firstIconOffsetClass = index === 0 ? 'ml-[-3.6px]' : '';
+          return (
+            <span key={reading.id} title={reading.name} className="flex items-center gap-[3px]">
+              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(reading.device_class)} ${firstIconOffsetClass}`} />
+              <span className={locationSensorCellColor(reading, colorize, aboveColor, belowColor, optimalColor)}>
+                {describeLocationSensor(reading, t)}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+      {batteryReading &&
+        (() => {
+          const Icon = iconForLocationSensor(batteryReading);
+          return (
+            <span key={batteryReading.id} title={batteryReading.name} className="flex items-center gap-[3px] ml-auto">
+              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(batteryReading.device_class)}`} />
+              <span className={locationSensorCellColor(batteryReading, colorize, aboveColor, belowColor, optimalColor)}>
+                {describeLocationSensor(batteryReading, t)}
+              </span>
+            </span>
+          );
+        })()}
+    </div>
+  );
+}
+
 /* Single spool row for table view */
 function SpoolTableRow({
   spool, remaining, pct, isSelected, onToggleSelected,
   onEdit, onCopy, onRestore, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
-  visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
+  visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
 }: {
   spool: InventorySpool;
   remaining: number;
@@ -2538,10 +2828,15 @@ function SpoolTableRow({
   visibleColumns: string[];
   assignmentMap: Record<number, LocationDisplay>;
   catalogMap: Record<number, SpoolCatalogEntry>;
+  locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
 }) {
   return (
     <tr
@@ -2563,7 +2858,7 @@ function SpoolTableRow({
       </td>
       {visibleColumns.map((colId) => (
         <td key={colId} className="py-3 px-4">
-          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
+          {columnCells[colId]?.({ spool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
         </td>
       ))}
       <td className="py-3 px-4">
@@ -2612,7 +2907,8 @@ function SpoolTableRow({
 function SpoolTableGroup({
   spools, headerSpool, remaining, pct, isExpanded, onToggle,
   onEdit, onCopy, onArchive, onDelete, onPrintLabel, onResetConsumedCounter,
-  visibleColumns, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight,
+  visibleColumns, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight,
+  colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
   selectedIds, onToggleSelected, onToggleGroupSelected,
 }: {
   spools: InventorySpool[];
@@ -2632,10 +2928,15 @@ function SpoolTableGroup({
   visibleColumns: string[];
   assignmentMap: Record<number, LocationDisplay>;
   catalogMap: Record<number, SpoolCatalogEntry>;
+  locationReadingsMap: Record<number, LocationHASensorReading[]>;
   currencySymbol: string;
   dateFormat: DateFormat;
   t: TFn;
   onSyncWeight?: (spool: InventorySpool) => void;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
   selectedIds?: Set<number>;
   onToggleSelected?: (id: number) => void;
   onToggleGroupSelected?: (ids: number[], select: boolean) => void;
@@ -2664,14 +2965,14 @@ function SpoolTableGroup({
             {idx === 0 ? (
               <div className="flex items-center gap-2">
                 <ChevronDown className={`w-4 h-4 text-bambu-gray transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })}
+                {columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })}
               </div>
             ) : colId === 'id' ? (
               <span className="text-xs font-medium bg-bambu-green/20 text-bambu-green px-2 py-0.5 rounded-full">
                 {t('inventory.groupedSpools', { count: spools.length })}
               </span>
             ) : (
-              columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, currencySymbol, dateFormat, t, onSyncWeight })
+              columnCells[colId]?.({ spool: headerSpool, remaining, pct, assignmentMap, catalogMap, locationReadingsMap, currencySymbol, dateFormat, t, onSyncWeight, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor })
             )}
           </td>
         ))}
@@ -2703,10 +3004,15 @@ function SpoolTableGroup({
             visibleColumns={visibleColumns}
             assignmentMap={assignmentMap}
             catalogMap={catalogMap}
+            locationReadingsMap={locationReadingsMap}
             currencySymbol={currencySymbol}
             dateFormat={dateFormat}
             t={t}
             onSyncWeight={onSyncWeight}
+            colorizeLocationSensors={colorizeLocationSensors}
+            locationSensorAboveColor={locationSensorAboveColor}
+            locationSensorBelowColor={locationSensorBelowColor}
+            locationSensorOptimalColor={locationSensorOptimalColor}
           />
         );
       })}

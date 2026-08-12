@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Briefcase, Workflow, UploadCloud, MonitorPlay } from 'lucide-react';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, Battery, FileText, Edit2, Pencil, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Briefcase, Workflow, UploadCloud, MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -10,8 +10,16 @@ import { checkPasswordComplexity } from '../utils/password';
 import { fleetAudience, sponsorHref } from '../utils/fleetAudience';
 import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPresets';
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
+import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
+import {
+  LOCATION_SENSOR_ALERT_COLOR_CLASSES,
+  loadLocationSensorAlertAboveColor,
+  loadLocationSensorAlertBelowColor,
+  loadLocationSensorAlertOptimalColor,
+  loadLocationSensorColorizeValues,
+} from '../utils/locationSensorDefaults';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
-import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
+import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
 import { CameraTokensSection } from './CameraTokensPage';
@@ -22,6 +30,8 @@ import { Button } from '../components/Button';
 import { SmartPlugCard } from '../components/SmartPlugCard';
 import { AddSmartPlugModal } from '../components/AddSmartPlugModal';
 import { HASensorModal } from '../components/HASensorModal';
+import { LocationHASensorModal } from '../components/LocationHASensorModal';
+import { LocationSensorOptionsModal } from '../components/LocationSensorOptionsModal';
 import { NotificationProviderCard } from '../components/NotificationProviderCard';
 import { AddNotificationModal } from '../components/AddNotificationModal';
 import { NotificationTemplateEditor } from '../components/NotificationTemplateEditor';
@@ -55,7 +65,7 @@ import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/setting
 import type { UsersSubTab } from '../lib/settingsSearch';
 import { availableEngines, hasEngineChoice, resolveEngine, type SliceEngineId } from '../lib/sliceEngines';
 
-const validTabs = ['general', 'plugs', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
+const validTabs = ['general', 'plugs', 'sensors', 'notifications', 'queue', 'filament', 'network', 'apikeys', 'virtual-printer', 'spoolbuddy', 'failure-detection', 'users', 'backup'] as const;
 type TabType = typeof validTabs[number];
 
 // Cross-tab search registrations for cards rendered inline in this file.
@@ -70,6 +80,8 @@ registerSettingsSearch({ labelKey: 'settings.fileManager', tab: 'general', keywo
 registerSettingsSearch({ labelKey: 'settings.updates', tab: 'general', keywords: 'updates version firmware beta check', anchor: 'card-updates' });
 registerSettingsSearch({ labelKey: 'settings.dataManagement', tab: 'general', keywords: 'data reset clear logs notifications preferences', anchor: 'card-data' });
 registerSettingsSearch({ labelKey: 'settings.smartPlugs', tab: 'plugs', keywords: 'smart plug energy power automation tapo kasa tplink shelly', anchor: 'card-plugs' });
+registerSettingsSearch({ labelKey: 'haSensors.sectionTitle', tab: 'sensors', keywords: 'home assistant sensor printer temperature humidity alert notify block print', anchor: 'card-ha-sensors' });
+registerSettingsSearch({ labelKey: 'locationHaSensors.sectionTitle', tab: 'sensors', keywords: 'home assistant sensor location storage box temperature humidity battery alert notify', anchor: 'card-location-sensors' });
 registerSettingsSearch({ labelKey: 'settings.providers', tab: 'notifications', keywords: 'telegram discord email notification providers webhook', anchor: 'card-providers' });
 registerSettingsSearch({ labelKey: 'settings.messageTemplates', tab: 'notifications', keywords: 'message templates notification text edit', anchor: 'card-templates' });
 registerSettingsSearch({ labelKey: 'settings.defaultPrintOptions', labelFallback: 'Default Print Options', tab: 'queue', keywords: 'print bed leveling flow calibration vibration first layer timelapse', anchor: 'card-print-options' });
@@ -167,6 +179,59 @@ const STORAGE_FALLBACK_COLORS = [
 const getStorageColor = (key: string, index: number) =>
   STORAGE_CATEGORY_COLORS[key] || STORAGE_FALLBACK_COLORS[index % STORAGE_FALLBACK_COLORS.length];
 
+const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
+  temperature: 0,
+  humidity: 1,
+  moisture: 1,
+  battery: 2,
+};
+
+const LOCATION_SENSOR_BINARY_LABELS: Record<string, { on: string; off: string }> = {
+  door: { on: 'open', off: 'closed' },
+  garage_door: { on: 'open', off: 'closed' },
+  window: { on: 'open', off: 'closed' },
+  opening: { on: 'open', off: 'closed' },
+  lock: { on: 'unlocked', off: 'locked' },
+  motion: { on: 'detected', off: 'clear' },
+  occupancy: { on: 'detected', off: 'clear' },
+  presence: { on: 'detected', off: 'clear' },
+  smoke: { on: 'detected', off: 'clear' },
+  gas: { on: 'detected', off: 'clear' },
+  moisture: { on: 'wet', off: 'dry' },
+  problem: { on: 'problem', off: 'ok' },
+  safety: { on: 'problem', off: 'ok' },
+  running: { on: 'running', off: 'stopped' },
+};
+
+function describeLocationSensorValue(
+  sensor: LocationHASensor,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  if (sensor.last_state === null) return null;
+  if (sensor.kind === 'numeric') {
+    const value = Number(sensor.last_state);
+    const formatted = Number.isNaN(value) ? sensor.last_state : value.toFixed(2);
+    return sensor.unit ? `${formatted} ${sensor.unit}` : formatted;
+  }
+  const labels = LOCATION_SENSOR_BINARY_LABELS[sensor.device_class ?? ''];
+  const key = labels ? labels[sensor.last_state === 'on' ? 'on' : 'off'] : sensor.last_state;
+  return t(`haSensors.states.${key}`, { defaultValue: key });
+}
+
+function locationSensorAlertStatus(sensor: LocationHASensor): 'above' | 'below' | 'ok' | null {
+  if (sensor.last_state === null) return null;
+  if (sensor.kind === 'numeric') {
+    if (sensor.alert_above === null && sensor.alert_below === null) return null;
+    const value = Number(sensor.last_state);
+    if (Number.isNaN(value)) return null;
+    if (sensor.alert_above !== null && value > sensor.alert_above) return 'above';
+    if (sensor.alert_below !== null && value < sensor.alert_below) return 'below';
+    return 'ok';
+  }
+  if (sensor.alert_state === null) return null;
+  return sensor.last_state.toLowerCase() === sensor.alert_state ? 'above' : 'ok';
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -193,6 +258,21 @@ export function SettingsPage() {
   const [editingPlug, setEditingPlug] = useState<SmartPlug | null>(null);
   const [showHASensorModal, setShowHASensorModal] = useState(false);
   const [editingHASensor, setEditingHASensor] = useState<PrinterHASensor | null>(null);
+  const [showLocationHASensorModal, setShowLocationHASensorModal] = useState(false);
+  const [editingLocationHASensor, setEditingLocationHASensor] = useState<LocationHASensor | null>(null);
+  const [showLocationSensorOptionsModal, setShowLocationSensorOptionsModal] = useState(false);
+  const [colorizeLocationSensorValues, setColorizeLocationSensorValues] = useState(() =>
+    loadLocationSensorColorizeValues()
+  );
+  const [locationSensorAboveColor, setLocationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
+  const [locationSensorBelowColor, setLocationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
+  const [locationSensorOptimalColor, setLocationSensorOptimalColor] = useState(() =>
+    loadLocationSensorAlertOptimalColor()
+  );
+  const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
+    locationName: string;
+    sensorIds: number[];
+  } | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [editingProvider, setEditingProvider] = useState<NotificationProvider | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
@@ -448,7 +528,36 @@ export function SettingsPage() {
   const { data: haSensors } = useQuery({
     queryKey: ['haSensors'],
     queryFn: () => api.getHASensors(),
-    enabled: activeTab === 'plugs',
+  });
+
+  const { data: locationHaSensors } = useQuery({
+    queryKey: ['locationHaSensors'],
+    queryFn: () => api.getLocationHASensors(),
+    refetchInterval: (settings?.location_sensor_poll_interval || 120) * 1000,
+  });
+
+  const { data: haSensorLocations } = useQuery({
+    queryKey: inventoryLocationsQueryKey,
+    queryFn: api.getLocations,
+    enabled: activeTab === 'sensors',
+  });
+
+  const deleteLocationSensorsMutation = useMutation({
+    mutationFn: async (sensorIds: number[]) => {
+      for (const id of sensorIds) {
+        await api.deleteLocationHASensor(id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locationHaSensors'] });
+      queryClient.invalidateQueries({ queryKey: ['locationHaSensorReadings'] });
+      showToast(t('locationHaSensors.toast.deleted'), 'success');
+      setDeleteLocationSensorsTarget(null);
+    },
+    onError: (err: Error) => {
+      showToast(err.message, 'error');
+      setDeleteLocationSensorsTarget(null);
+    },
   });
 
   // A business-sized fleet gets the commercial ask instead of the donation ask.
@@ -1480,6 +1589,22 @@ export function SettingsPage() {
           {smartPlugs && smartPlugs.length > 0 && (
             <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
               {smartPlugs.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => handleTabChange('sensors')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px lg:border-b-0 lg:border-l-2 lg:-ml-px lg:mb-0 lg:justify-start flex items-center gap-2 ${
+            activeTab === 'sensors'
+              ? 'text-bambu-green border-bambu-green'
+              : 'text-bambu-gray hover:text-gray-900 dark:hover:text-white border-transparent'
+          }`}
+        >
+          <Gauge className="w-4 h-4" />
+          {t('settings.tabs.sensors')}
+          {(haSensors?.length ?? 0) + (locationHaSensors?.length ?? 0) > 0 && (
+            <span className="text-xs bg-bambu-dark-tertiary px-1.5 py-0.5 rounded-full">
+              {(haSensors?.length ?? 0) + (locationHaSensors?.length ?? 0)}
             </span>
           )}
         </button>
@@ -3701,11 +3826,12 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
 
-          {/* Home Assistant sensors (#1148, #448). Sits under the plugs on the
-              same tab: same integration, same credentials, but read-only —
-              these are contacts and thermometers, not switches. */}
-          <div className="mt-8">
+      {activeTab === 'sensors' && (
+        <div id="card-sensors">
+          <div id="card-ha-sensors">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <Gauge className="w-5 h-5 text-bambu-green" />
@@ -3778,6 +3904,169 @@ export function SettingsPage() {
                   <div className="text-center text-bambu-gray">
                     <Gauge className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p className="text-sm">{t('haSensors.empty')}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          <div id="card-location-sensors" className="mt-8">
+            <div className="flex items-start justify-between gap-[20px] mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Gauge className="w-5 h-5 text-bambu-green" />
+                  {t('locationHaSensors.sectionTitle')}
+                </h2>
+                <p className="text-sm text-bambu-gray mt-1">
+                  {t('locationHaSensors.sectionDescription')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowLocationSensorOptionsModal(true)}
+                  className="p-2 rounded-lg bg-bambu-dark-tertiary hover:bg-bambu-gray-dark text-white transition-colors"
+                  title={t('locationHaSensors.options.buttonLabel')}
+                  aria-label={t('locationHaSensors.options.buttonLabel')}
+                >
+                  <Cog className="w-4 h-4" />
+                </button>
+                <Button
+                  className="whitespace-nowrap"
+                  disabled={!haSensorLocations?.length}
+                  onClick={() => {
+                    setEditingLocationHASensor(null);
+                    setShowLocationHASensorModal(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('locationHaSensors.add')}
+                </Button>
+              </div>
+            </div>
+
+            {locationHaSensors && locationHaSensors.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from(
+                  locationHaSensors
+                    .reduce((map, sensor) => {
+                      const list = map.get(sensor.location_id) ?? [];
+                      list.push(sensor);
+                      map.set(sensor.location_id, list);
+                      return map;
+                    }, new Map<number, LocationHASensor[]>())
+                    .entries()
+                ).map(([locationId, unsortedSensors]) => {
+                  const location = haSensorLocations?.find((l) => l.id === locationId);
+                  const iconForSensor = (sensor: LocationHASensor) =>
+                    sensor.device_class === 'temperature'
+                      ? Thermometer
+                      : sensor.device_class === 'humidity' || sensor.device_class === 'moisture'
+                        ? Droplets
+                        : sensor.device_class === 'battery'
+                          ? Battery
+                          : Gauge;
+                  const sensors = [...unsortedSensors].sort(
+                    (a, b) =>
+                      (LOCATION_SENSOR_CATEGORY_ORDER[a.device_class ?? ''] ?? 99) -
+                      (LOCATION_SENSOR_CATEGORY_ORDER[b.device_class ?? ''] ?? 99)
+                  );
+                  return (
+                    <Card key={locationId}>
+                      <CardContent className="py-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-white font-medium truncate">
+                            {location?.name ?? t('locationHaSensors.unknownLocation')}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteLocationSensorsTarget({
+                                locationName: location?.name ?? t('locationHaSensors.unknownLocation'),
+                                sensorIds: sensors.map((sensor) => sensor.id),
+                              })
+                            }
+                            className="p-1 text-bambu-gray hover:text-red-500 rounded transition-colors shrink-0"
+                            title={t('common.delete')}
+                            aria-label={t('common.delete')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {sensors.map((sensor) => {
+                            const Icon = iconForSensor(sensor);
+                            const value = describeLocationSensorValue(sensor, t);
+                            const alertStatus = colorizeLocationSensorValues ? locationSensorAlertStatus(sensor) : null;
+                            const valueColor =
+                              alertStatus === 'above'
+                                ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorAboveColor]
+                                : alertStatus === 'below'
+                                  ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorBelowColor]
+                                  : alertStatus === 'ok'
+                                    ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorOptimalColor]
+                                    : 'text-white';
+                            return (
+                              <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
+                                <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
+                                {value && <span className={`${valueColor} shrink-0 w-[52px] text-center`}>{value}</span>}
+                                {value && <span className="shrink-0 mr-1.5">-</span>}
+                                <span className="truncate mr-1.5">{sensor.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingLocationHASensor(sensor);
+                                    setShowLocationHASensorModal(true);
+                                  }}
+                                  className="p-1 text-bambu-gray hover:text-white rounded transition-colors shrink-0"
+                                  title={t('common.edit')}
+                                  aria-label={t('common.edit')}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {(() => {
+                            const notifying = sensors.filter((sensor) => sensor.notify_on_alert);
+                            if (!notifying.length) return null;
+                            return (
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+                                {t('haSensors.badgeNotifies')}
+                                {notifying.map((sensor) => {
+                                  const Icon = iconForSensor(sensor);
+                                  return <Icon key={sensor.id} className="w-3 h-3" />;
+                                })}
+                              </span>
+                            );
+                          })()}
+                          {(() => {
+                            const hidden = sensors.filter((sensor) => !sensor.show_on_card);
+                            if (!hidden.length) return null;
+                            return (
+                              <span className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-bambu-dark-tertiary text-bambu-gray">
+                                {t('haSensors.badgeHidden')}
+                                {hidden.map((sensor) => {
+                                  const Icon = iconForSensor(sensor);
+                                  return <Icon key={sensor.id} className="w-3 h-3" />;
+                                })}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center text-bambu-gray">
+                    <Gauge className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">{t('locationHaSensors.empty')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -5916,6 +6205,43 @@ export function SettingsPage() {
             setShowHASensorModal(false);
             setEditingHASensor(null);
           }}
+        />
+      )}
+
+      {showLocationHASensorModal && (
+        <LocationHASensorModal
+          sensor={editingLocationHASensor}
+          locations={haSensorLocations ?? []}
+          onClose={() => {
+            setShowLocationHASensorModal(false);
+            setEditingLocationHASensor(null);
+          }}
+        />
+      )}
+
+      {showLocationSensorOptionsModal && (
+        <LocationSensorOptionsModal
+          onClose={() => {
+            setShowLocationSensorOptionsModal(false);
+            setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
+            setLocationSensorAboveColor(loadLocationSensorAlertAboveColor());
+            setLocationSensorBelowColor(loadLocationSensorAlertBelowColor());
+            setLocationSensorOptimalColor(loadLocationSensorAlertOptimalColor());
+          }}
+        />
+      )}
+
+      {deleteLocationSensorsTarget && (
+        <ConfirmModal
+          title={t('locationHaSensors.deleteAllConfirm.title')}
+          message={t('locationHaSensors.deleteAllConfirm.message', {
+            location: deleteLocationSensorsTarget.locationName,
+            count: deleteLocationSensorsTarget.sensorIds.length,
+          })}
+          variant="danger"
+          isLoading={deleteLocationSensorsMutation.isPending}
+          onConfirm={() => deleteLocationSensorsMutation.mutate(deleteLocationSensorsTarget.sensorIds)}
+          onCancel={() => setDeleteLocationSensorsTarget(null)}
         />
       )}
 
