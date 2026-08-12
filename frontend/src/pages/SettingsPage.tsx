@@ -3829,11 +3829,8 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Sensors Tab */}
       {activeTab === 'sensors' && (
         <div id="card-sensors">
-          {/* Home Assistant sensors (#1148, #448): read-only contact and
-              thermometer entities, distinct from the switchable smart plugs. */}
           <div id="card-ha-sensors">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">

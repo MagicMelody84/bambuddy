@@ -606,7 +606,6 @@ class AppSettings(BaseModel):
         description="Global lead time floor (days) used in reorder point calculation for all SKUs",
     )
 
-    # Location HA sensor polling
     location_sensor_poll_interval: int = Field(
         default=120,
         ge=60,

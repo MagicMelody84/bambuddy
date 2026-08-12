@@ -42,8 +42,6 @@ class LocationHASensorManager:
         self._last_alerting.pop(sensor_id, None)
 
     async def _poll_loop(self):
-        # Poll once immediately on start so a restart doesn't leave the cache
-        # empty (and the card/table views blank) for up to a full interval.
         while True:
             try:
                 await self.poll_once()

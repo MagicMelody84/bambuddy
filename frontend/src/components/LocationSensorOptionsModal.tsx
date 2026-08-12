@@ -177,10 +177,6 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
     onClose();
   };
 
-  // Overwrites every existing sensor of a matching category with the values
-  // configured above — a bulk apply, not a per-sensor edit, so it's guarded
-  // by a confirmation the caller can't undo. The fields on screen are saved
-  // first so the values just applied also become the new auto-add defaults.
   const resetMutation = useMutation({
     mutationFn: async () => {
       await persistDefaults();

@@ -184,8 +184,6 @@ describe('LocationSensorOptionsModal', () => {
     expect(updateSensor).toHaveBeenCalledWith(3, expect.objectContaining({ alert_above: null }));
     expect(onClose).toHaveBeenCalled();
 
-    // The on-screen values (not yet saved via the Save button) must be
-    // persisted before the bulk apply, so future auto-added sensors use them too.
     expect(window.localStorage.setItem).toHaveBeenCalledWith(
       'bambuddy-location-sensor-auto-add-defaults',
       expect.stringContaining('"alertAbove":"35"')

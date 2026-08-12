@@ -20,8 +20,6 @@ const EMPTY_CATEGORY_DEFAULTS: LocationSensorCategoryDefaults = {
   showOnCard: true,
 };
 
-// Sensible out-of-the-box thresholds for a typical filament drybox, used
-// until the user saves their own values in the Options modal.
 export function defaultLocationSensorDefaults(): LocationSensorDefaults {
   return {
     temperature: { ...EMPTY_CATEGORY_DEFAULTS, alertAbove: '30', alertBelow: '20' },

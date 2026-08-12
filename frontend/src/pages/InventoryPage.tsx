@@ -121,11 +121,6 @@ function loadColumnConfig(): ColumnConfig[] {
       const storedIds = new Set(parsed.map((c) => c.id));
       // Keep stored columns that still exist in defaults
       const validStored = parsed.filter((c) => defaultIds.has(c.id));
-      // Add any new default columns not in stored config, inserting each
-      // right after its nearest preceding sibling from DEFAULT_COLUMNS (not
-      // dumped at the end) so a newly shipped column (e.g. Battery alongside
-      // Temperature/Humidity) lands next to its intended neighbors for
-      // users who already had a saved column config.
       const merged = [...validStored];
       for (const col of DEFAULT_COLUMNS) {
         if (storedIds.has(col.id)) continue;
@@ -2709,12 +2704,6 @@ function iconForLocationSensor(reading: LocationHASensorReading): LucideIcon {
   return LOCATION_SENSOR_ICONS[deviceClass] ?? (reading.kind === 'numeric' ? Gauge : Activity);
 }
 
-// Lucide glyphs don't fill their viewBox evenly — the thermometer glyph
-// leaves several pixels of empty space at its right edge, while droplets
-// and battery sit almost flush against theirs. A shared flex `gap` alone
-// therefore reads as a tighter icon-to-value gap for those two; this adds
-// back just enough margin (measured via getBBox()) so all three look equally
-// spaced next to their value.
 function locationSensorIconGapClass(deviceClass: string | null): string {
   if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'mr-[2px]';
   if (deviceClass === 'battery') return 'mr-[3px]';
@@ -2790,9 +2779,6 @@ function SpoolLocationFooter({
       <div className="flex items-center gap-3">
         {otherReadings.map((reading, index) => {
           const Icon = iconForLocationSensor(reading);
-          // The first icon's own glyph leaves empty space at its left edge
-          // (e.g. the thermometer), which reads as a bigger gap to the "|"
-          // separator than the name-to-separator gap right before it.
           const firstIconOffsetClass = index === 0 ? 'ml-[-3.6px]' : '';
           return (
             <span key={reading.id} title={reading.name} className="flex items-center gap-[3px]">
