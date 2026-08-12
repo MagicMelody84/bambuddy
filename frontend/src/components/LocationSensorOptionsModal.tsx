@@ -253,6 +253,12 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
             />
           </div>
 
+          <div className="pt-4 mt-4 border-t border-bambu-dark-tertiary">
+            <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-3">
+              {t('locationHaSensors.options.generalSettings')}
+            </p>
+          </div>
+
           <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
             <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
               {t('locationHaSensors.options.pollInterval')}

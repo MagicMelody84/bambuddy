@@ -5701,6 +5701,7 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant 传感器（存放位置）',
+    sectionDescription: '将 Home Assistant 的温度、湿度或电量传感器绑定到存放位置，即可在耗材卡片和表格中显示实时数值。每个存放位置每个类别只能绑定一个传感器。',
     add: '添加传感器',
     addTitle: '添加 Home Assistant 传感器',
     editTitle: '编辑 Home Assistant 传感器',
@@ -5716,7 +5717,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '是否也添加其他传感器？',
-      confirmMessage: 'Home Assistant 中此位置还有 {{names}}。是否也一并绑定？',
+      confirmMessage: 'Home Assistant 还为此位置找到了其他传感器。请选择要一并添加的传感器：',
       added: '已同时添加：{{names}}',
       noneFound: '未找到该位置匹配的温度、湿度或电池传感器。',
     },
@@ -5724,6 +5725,7 @@ export default {
       buttonLabel: '传感器选项',
       title: '位置传感器选项',
       description: '当某个位置绑定第一个传感器时，若自动添加温度、湿度或电池传感器，将使用这些默认值。',
+      generalSettings: '常规设置',
       pollInterval: '更新间隔（秒）',
       pollIntervalHint: 'Bambuddy 轮询 Home Assistant 并刷新屏幕上传感器数值的频率。最少 60 秒。',
       colorizeValues: '根据警报阈值为传感器数值着色',

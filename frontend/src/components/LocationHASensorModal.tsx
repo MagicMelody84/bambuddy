@@ -91,6 +91,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
 
   const [showAutoAddConfirm, setShowAutoAddConfirm] = useState(false);
   const [autoAddCandidates, setAutoAddCandidates] = useState<HADisplayEntity[]>([]);
+  const [autoAddSelected, setAutoAddSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -199,7 +200,8 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
       const targetLocationId = Number(locationId);
       await api.createLocationHASensor({ ...buildPrimaryPayload(), location_id: targetLocationId });
       const defaults = loadLocationSensorDefaults();
-      for (const entity of autoAddCandidates) {
+      const chosen = autoAddCandidates.filter((entity) => autoAddSelected[entity.entity_id]);
+      for (const entity of chosen) {
         const categoryDefaults = categoryFor(entity.device_class);
         const d = categoryDefaults ? defaults[categoryDefaults] : null;
         await api.createLocationHASensor({
@@ -216,14 +218,16 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
           location_id: targetLocationId,
         });
       }
+      return chosen;
     },
-    onSuccess: () => {
+    onSuccess: (chosen) => {
       invalidate();
       setShowAutoAddConfirm(false);
-      showToast(
-        t('locationHaSensors.autoAdd.added', { names: autoAddCandidates.map((e) => e.entity_id).join(', ') }),
-        'success'
-      );
+      if (chosen.length > 0) {
+        showToast(t('locationHaSensors.autoAdd.added', { names: chosen.map((e) => e.entity_id).join(', ') }), 'success');
+      } else {
+        showToast(t('locationHaSensors.toast.created'), 'success');
+      }
       onClose();
     },
     onError: (err: Error) => {
@@ -286,6 +290,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
         const siblings = findSiblingEntities(entityId, category, entities);
         if (siblings.length > 0) {
           setAutoAddCandidates(siblings);
+          setAutoAddSelected(Object.fromEntries(siblings.map((s) => [s.entity_id, true])));
           setShowAutoAddConfirm(true);
           return;
         }
@@ -567,18 +572,37 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     {showAutoAddConfirm && autoAddCandidates.length > 0 && (
       <ConfirmModal
         title={t('locationHaSensors.autoAdd.confirmTitle')}
-        message={t('locationHaSensors.autoAdd.confirmMessage', {
-          names: autoAddCandidates.map((e) => e.entity_id).join(', '),
-        })}
+        message={t('locationHaSensors.autoAdd.confirmMessage')}
         overlayZIndex="z-[110]"
         isLoading={autoAddMutation.isPending}
+        confirmDisabled={!autoAddCandidates.some((e) => autoAddSelected[e.entity_id])}
         onConfirm={() => autoAddMutation.mutate()}
         onCancel={() => {
           setShowAutoAddConfirm(false);
           setAutoAddCandidates([]);
+          setAutoAddSelected({});
           saveMutation.mutate();
         }}
-      />
+      >
+        <div className="space-y-2">
+          {autoAddCandidates.map((entity) => (
+            <label key={entity.entity_id} className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoAddSelected[entity.entity_id] ?? true}
+                onChange={(e) =>
+                  setAutoAddSelected((prev) => ({ ...prev, [entity.entity_id]: e.target.checked }))
+                }
+                className="w-4 h-4"
+              />
+              <span className="text-sm text-white">
+                {entity.friendly_name}
+                <span className="text-bambu-gray"> — {entity.entity_id}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </ConfirmModal>
     )}
     {showAddLocationModal && (
       <LocationsModal

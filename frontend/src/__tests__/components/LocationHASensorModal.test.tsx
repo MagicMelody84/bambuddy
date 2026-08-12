@@ -291,9 +291,10 @@ describe('LocationHASensorModal', () => {
     await user.click(screen.getByRole('button', { name: /save/i }));
 
     expect(await screen.findByText('Add the other sensors too?')).toBeInTheDocument();
-    expect(
-      screen.getByText(/sensor\.drybox_1_temperature, sensor\.drybox_1_battery/)
-    ).toBeInTheDocument();
+    const temperatureCheckbox = screen.getByRole('checkbox', { name: /drybox 1 temperature/i });
+    const batteryCheckbox = screen.getByRole('checkbox', { name: /drybox 1 battery/i });
+    expect(temperatureCheckbox).toBeChecked();
+    expect(batteryCheckbox).toBeChecked();
 
     await user.click(screen.getByRole('button', { name: /confirm/i }));
 
@@ -301,6 +302,32 @@ describe('LocationHASensorModal', () => {
     expect(createSensor).toHaveBeenNthCalledWith(1, expect.objectContaining({ entity_id: 'sensor.drybox_1_humidity' }));
     expect(createSensor).toHaveBeenNthCalledWith(2, expect.objectContaining({ entity_id: 'sensor.drybox_1_temperature' }));
     expect(createSensor).toHaveBeenNthCalledWith(3, expect.objectContaining({ entity_id: 'sensor.drybox_1_battery' }));
+  });
+
+  it('only adds sibling entities left checked in the auto-add dialog', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_humidity', friendly_name: 'Drybox 1 Humidity', domain: 'sensor', device_class: 'humidity', unit_of_measurement: '%', state: '40' },
+      { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      { entity_id: 'sensor.drybox_1_battery', friendly_name: 'Drybox 1 Battery', domain: 'sensor', device_class: 'battery', unit_of_measurement: '%', state: '90' },
+    ] as never);
+    getLocationSensors.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Humidity'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Add the other sensors too?')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /drybox 1 battery/i }));
+
+    await user.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(2));
+    expect(createSensor).toHaveBeenNthCalledWith(1, expect.objectContaining({ entity_id: 'sensor.drybox_1_humidity' }));
+    expect(createSensor).toHaveBeenNthCalledWith(2, expect.objectContaining({ entity_id: 'sensor.drybox_1_temperature' }));
+    expect(createSensor).not.toHaveBeenCalledWith(expect.objectContaining({ entity_id: 'sensor.drybox_1_battery' }));
   });
 
   it('applies the saved per-category defaults to auto-added sibling sensors', async () => {

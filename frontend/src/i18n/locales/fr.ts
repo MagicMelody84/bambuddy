@@ -5702,6 +5702,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Capteurs Home Assistant (emplacements de stockage)',
+    sectionDescription:
+      "Associez des capteurs de température, d'humidité ou de batterie Home Assistant à vos emplacements de stockage pour afficher les relevés en direct sur la fiche du filament et dans le tableau. Un seul capteur par catégorie est autorisé par emplacement.",
     add: 'Ajouter un capteur',
     addTitle: 'Ajouter un capteur Home Assistant',
     editTitle: 'Modifier le capteur Home Assistant',
@@ -5717,7 +5719,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Ajouter aussi les autres capteurs ?',
-      confirmMessage: 'Home Assistant dispose aussi de {{names}} pour cet emplacement. Les lier également ?',
+      confirmMessage: 'Home Assistant a également trouvé des capteurs pour cet emplacement. Choisissez ceux à ajouter aussi :',
       added: 'Également ajouté : {{names}}',
       noneFound: 'Aucun capteur de température, d\'humidité ou de batterie correspondant trouvé pour cet emplacement.',
     },
@@ -5725,6 +5727,7 @@ export default {
       buttonLabel: 'Options des capteurs',
       title: 'Options des capteurs d\'emplacement',
       description: 'Ces valeurs sont utilisées lorsqu\'un capteur de température, d\'humidité ou de batterie est lié automatiquement avec le premier capteur d\'un emplacement.',
+      generalSettings: "Paramètres généraux",
       pollInterval: "Intervalle de mise à jour (secondes)",
       pollIntervalHint: "Fréquence à laquelle Bambuddy interroge Home Assistant et actualise les valeurs des capteurs à l'écran. Minimum 60 secondes.",
       colorizeValues: "Colorer les valeurs des capteurs selon leurs seuils d'alerte",

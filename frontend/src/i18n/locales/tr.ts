@@ -5676,6 +5676,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant Sensörleri (Depolama Konumları)',
+    sectionDescription:
+      'Filament kartında ve tabloda canlı değerleri göstermek için Home Assistant sıcaklık, nem veya pil sensörlerini depolama konumlarınıza bağlayın. Konum başına kategori başına yalnızca bir sensöre izin verilir.',
     add: 'Sensör ekle',
     addTitle: 'Home Assistant sensörü ekle',
     editTitle: 'Home Assistant sensörünü düzenle',
@@ -5691,7 +5693,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Diğer sensörler de eklensin mi?',
-      confirmMessage: 'Home Assistant\'ta bu konum için {{names}} de var. Bunlar da bağlansın mı?',
+      confirmMessage: 'Home Assistant bu konum için başka sensörler de buldu. Eklemek istediklerinizi seçin:',
       added: 'Ayrıca eklendi: {{names}}',
       noneFound: 'Bu konum için eşleşen sıcaklık, nem veya pil sensörü bulunamadı.',
     },
@@ -5699,6 +5701,7 @@ export default {
       buttonLabel: 'Sensör seçenekleri',
       title: 'Konum Sensörü Seçenekleri',
       description: 'Bu değerler, bir konumun ilk sensörüyle birlikte bir sıcaklık, nem veya pil sensörü otomatik olarak bağlandığında kullanılır.',
+      generalSettings: "Genel ayarlar",
       pollInterval: "Güncelleme aralığı (saniye)",
       pollIntervalHint: "Bambuddy'nin Home Assistant'ı ne sıklıkla sorgulayıp ekrandaki sensör değerlerini güncellediği. Minimum 60 saniye.",
       colorizeValues: 'Sensör değerlerini uyarı eşiklerine göre renklendir',

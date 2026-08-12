@@ -5701,6 +5701,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Sensori Home Assistant (posizioni di archiviazione)',
+    sectionDescription:
+      'Collega sensori di temperatura, umidità o batteria di Home Assistant alle tue posizioni di archiviazione per mostrare le letture in tempo reale sulla scheda del filamento e nella tabella. È consentito un solo sensore per categoria per posizione.',
     add: 'Aggiungi sensore',
     addTitle: 'Aggiungi sensore Home Assistant',
     editTitle: 'Modifica sensore Home Assistant',
@@ -5716,7 +5718,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Aggiungere anche gli altri sensori?',
-      confirmMessage: 'Home Assistant ha anche {{names}} per questa posizione. Collegarli anch\'essi?',
+      confirmMessage: 'Home Assistant ha trovato anche altri sensori per questa posizione. Scegli quali aggiungere:',
       added: 'Aggiunto anche: {{names}}',
       noneFound: 'Nessun sensore di temperatura, umidità o batteria corrispondente trovato per questa posizione.',
     },
@@ -5724,6 +5726,7 @@ export default {
       buttonLabel: 'Opzioni sensori',
       title: 'Opzioni sensori di posizione',
       description: 'Questi valori vengono usati quando un sensore di temperatura, umidità o batteria viene collegato automaticamente insieme al primo sensore di una posizione.',
+      generalSettings: 'Impostazioni generali',
       pollInterval: 'Intervallo di aggiornamento (secondi)',
       pollIntervalHint: 'Con quale frequenza Bambuddy interroga Home Assistant e aggiorna i valori dei sensori a schermo. Minimo 60 secondi.',
       colorizeValues: 'Colora i valori dei sensori in base alle relative soglie di allarme',

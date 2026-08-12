@@ -5442,6 +5442,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant 센서 (보관 위치)',
+    sectionDescription:
+      'Home Assistant의 온도, 습도, 배터리 센서를 보관 위치에 연결하면 필라멘트 카드와 표에 실시간 값이 표시됩니다. 위치당 카테고리별로 센서를 하나만 등록할 수 있습니다.',
     add: '센서 추가',
     addTitle: 'Home Assistant 센서 추가',
     editTitle: 'Home Assistant 센서 편집',
@@ -5457,7 +5459,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '다른 센서도 추가할까요?',
-      confirmMessage: 'Home Assistant에 이 위치의 {{names}}도 있습니다. 함께 연결할까요?',
+      confirmMessage: 'Home Assistant에서 이 위치의 다른 센서도 찾았습니다. 추가할 항목을 선택하세요:',
       added: '다음도 추가됨: {{names}}',
       noneFound: '이 위치에 일치하는 온도, 습도 또는 배터리 센서를 찾을 수 없습니다.',
     },
@@ -5465,6 +5467,7 @@ export default {
       buttonLabel: '센서 옵션',
       title: '위치 센서 옵션',
       description: '이 값은 위치의 첫 번째 센서와 함께 온도, 습도 또는 배터리 센서가 자동으로 연결될 때 사용됩니다.',
+      generalSettings: '일반 설정',
       pollInterval: '업데이트 간격(초)',
       pollIntervalHint: 'Bambuddy가 Home Assistant를 폴링하여 화면의 센서 값을 갱신하는 주기입니다. 최소 60초.',
       colorizeValues: '경보 임계값에 따라 센서 값에 색상 표시',

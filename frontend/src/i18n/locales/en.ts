@@ -5762,6 +5762,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant Sensors (Storage Locations)',
+    sectionDescription:
+      'Bind Home Assistant temperature, humidity, or battery sensors to your storage locations to show live readings on the filament card and in the table. Only one sensor per category is allowed per location.',
     add: 'Add Sensor',
     addTitle: 'Add Home Assistant Sensor',
     editTitle: 'Edit Home Assistant Sensor',
@@ -5777,7 +5779,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Add the other sensors too?',
-      confirmMessage: 'Home Assistant also has {{names}} for this location. Bind them as well?',
+      confirmMessage: 'Home Assistant also found sensors for this location. Choose which ones to add too:',
       added: 'Also added: {{names}}',
       noneFound: 'No matching temperature, humidity, or battery sensors found for this location.',
     },
@@ -5785,6 +5787,7 @@ export default {
       buttonLabel: 'Sensor options',
       title: 'Location Sensor Options',
       description: 'These values are used when a temperature, humidity, or battery sensor is bound automatically alongside the first sensor for a location.',
+      generalSettings: 'General settings',
       pollInterval: 'Update interval (seconds)',
       pollIntervalHint: 'How often Bambuddy polls Home Assistant and refreshes sensor values on screen. Minimum 60 seconds.',
       colorizeValues: 'Colorize sensor values against their alert thresholds',

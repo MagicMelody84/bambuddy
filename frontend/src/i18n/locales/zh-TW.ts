@@ -5701,6 +5701,7 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant 感測器（存放位置）',
+    sectionDescription: '將 Home Assistant 的溫度、濕度或電量感測器綁定到存放位置，即可在線材卡片和表格中顯示即時數值。每個存放位置每個類別只能綁定一個感測器。',
     add: '新增感測器',
     addTitle: '新增 Home Assistant 感測器',
     editTitle: '編輯 Home Assistant 感測器',
@@ -5716,7 +5717,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '是否也新增其他感測器？',
-      confirmMessage: 'Home Assistant 中此位置還有 {{names}}。是否一併綁定？',
+      confirmMessage: 'Home Assistant 也為此位置找到了其他感測器。請選擇要一併新增的感測器：',
       added: '已同時新增：{{names}}',
       noneFound: '未找到該位置相符的溫度、濕度或電池感測器。',
     },
@@ -5724,6 +5725,7 @@ export default {
       buttonLabel: '感測器選項',
       title: '位置感測器選項',
       description: '當某個位置綁定第一個感測器時，若自動新增溫度、濕度或電池感測器，將使用這些預設值。',
+      generalSettings: '一般設定',
       pollInterval: '更新間隔（秒）',
       pollIntervalHint: 'Bambuddy 輪詢 Home Assistant 並刷新畫面上感測器數值的頻率。最少 60 秒。',
       colorizeValues: '依警示閾值為感測器數值著色',

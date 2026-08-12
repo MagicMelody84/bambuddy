@@ -54,13 +54,14 @@ describe('LocationSensorOptionsModal', () => {
     expect(aboveInputs.length).toBeGreaterThan(0);
 
     const inputs = screen.getAllByRole('spinbutton');
-    await user.type(inputs[0], '30');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '35');
 
     await user.click(screen.getByRole('button', { name: /save/i }));
 
     expect(window.localStorage.setItem).toHaveBeenCalledWith(
       'bambuddy-location-sensor-auto-add-defaults',
-      expect.stringContaining('"alertAbove":"30"')
+      expect.stringContaining('"alertAbove":"35"')
     );
     expect(onClose).toHaveBeenCalled();
   });
@@ -169,7 +170,8 @@ describe('LocationSensorOptionsModal', () => {
 
     await screen.findByText('Battery');
     const inputs = screen.getAllByRole('spinbutton');
-    await user.type(inputs[0], '30');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '35');
 
     await user.click(screen.getByRole('button', { name: /^reset$/i }));
     expect(updateSensor).not.toHaveBeenCalled();
@@ -178,7 +180,7 @@ describe('LocationSensorOptionsModal', () => {
     await user.click(screen.getAllByRole('button', { name: /^reset$/i })[1]);
 
     await waitFor(() => expect(updateSensor).toHaveBeenCalledTimes(3));
-    expect(updateSensor).toHaveBeenCalledWith(1, expect.objectContaining({ alert_above: 30 }));
+    expect(updateSensor).toHaveBeenCalledWith(1, expect.objectContaining({ alert_above: 35 }));
     expect(updateSensor).toHaveBeenCalledWith(3, expect.objectContaining({ alert_above: null }));
     expect(onClose).toHaveBeenCalled();
 
@@ -186,7 +188,7 @@ describe('LocationSensorOptionsModal', () => {
     // persisted before the bulk apply, so future auto-added sensors use them too.
     expect(window.localStorage.setItem).toHaveBeenCalledWith(
       'bambuddy-location-sensor-auto-add-defaults',
-      expect.stringContaining('"alertAbove":"30"')
+      expect.stringContaining('"alertAbove":"35"')
     );
   });
 

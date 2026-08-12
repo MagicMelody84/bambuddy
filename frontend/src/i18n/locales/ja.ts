@@ -5713,6 +5713,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home Assistant センサー（保管場所）',
+    sectionDescription:
+      'Home Assistant の温度・湿度・バッテリーセンサーを保管場所に紐づけると、フィラメントカードと一覧表にリアルタイムの値が表示されます。1つの保管場所につき、各カテゴリーで登録できるセンサーは1つだけです。',
     add: 'センサーを追加',
     addTitle: 'Home Assistant センサーを追加',
     editTitle: 'Home Assistant センサーを編集',
@@ -5728,7 +5730,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '他のセンサーも追加しますか？',
-      confirmMessage: 'Home Assistant にはこの保管場所用の {{names}} もあります。これらも連携しますか？',
+      confirmMessage: 'Home Assistant でこの保管場所の他のセンサーも見つかりました。追加するものを選んでください：',
       added: '追加で連携しました: {{names}}',
       noneFound: 'この保管場所に一致する温度・湿度・バッテリーセンサーが見つかりませんでした。',
     },
@@ -5736,6 +5738,7 @@ export default {
       buttonLabel: 'センサーオプション',
       title: '保管場所センサーのオプション',
       description: 'この値は、保管場所の最初のセンサーと一緒に温度・湿度・バッテリーセンサーが自動的に連携される際に使用されます。',
+      generalSettings: '一般設定',
       pollInterval: '更新間隔（秒）',
       pollIntervalHint: 'Bambuddyがホームアシスタントに問い合わせて画面上のセンサー値を更新する頻度です。最小60秒。',
       colorizeValues: 'アラートしきい値に応じてセンサー値を色分け表示',

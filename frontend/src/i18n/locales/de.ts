@@ -5712,6 +5712,8 @@ export default {
   },
   locationHaSensors: {
     sectionTitle: 'Home-Assistant-Sensoren (Lagerorte)',
+    sectionDescription:
+      'Binden Sie Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an Ihre Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
     add: 'Sensor hinzufügen',
     addTitle: 'Home-Assistant-Sensor hinzufügen',
     editTitle: 'Home-Assistant-Sensor bearbeiten',
@@ -5727,14 +5729,15 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Auch die anderen Sensoren hinzufügen?',
-      confirmMessage: 'Home Assistant hat für diesen Lagerort auch {{names}}. Ebenfalls binden?',
+      confirmMessage: 'Home Assistant hat für diesen Lagerort auch weitere Sensoren gefunden. Wähle aus, welche zusätzlich hinzugefügt werden sollen:',
       added: 'Zusätzlich hinzugefügt: {{names}}',
       noneFound: 'Keine passenden Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren für diesen Lagerort gefunden.',
     },
     options: {
       buttonLabel: 'Sensor-Optionen',
       title: 'Lagerort-Sensor-Optionen',
-      description: 'Diese Werte werden verwendet, wenn ein Temperatur-, Luftfeuchtigkeits- oder Batteriesensor automatisch zusammen mit dem ersten Sensor eines Lagerorts gebunden wird.',
+      description: 'Diese Werte werden verwendet, wenn ein Temperatur-, Luftfeuchtigkeits- oder Batteriesensor automatisch mit einem Lagerort gebunden wird.',
+      generalSettings: 'Allgemeine Einstellungen',
       pollInterval: 'Aktualisierungsintervall (Sekunden)',
       pollIntervalHint: 'Wie oft Bambuddy Home Assistant abfragt und die Sensorwerte auf dem Bildschirm aktualisiert. Minimum 60 Sekunden.',
       colorizeValues: 'Sensorwerte anhand ihrer Alarmschwellen farbig darstellen',

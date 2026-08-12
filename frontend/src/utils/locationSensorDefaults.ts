@@ -20,11 +20,13 @@ const EMPTY_CATEGORY_DEFAULTS: LocationSensorCategoryDefaults = {
   showOnCard: true,
 };
 
-export function emptyLocationSensorDefaults(): LocationSensorDefaults {
+// Sensible out-of-the-box thresholds for a typical filament drybox, used
+// until the user saves their own values in the Options modal.
+export function defaultLocationSensorDefaults(): LocationSensorDefaults {
   return {
-    temperature: { ...EMPTY_CATEGORY_DEFAULTS },
-    humidity: { ...EMPTY_CATEGORY_DEFAULTS },
-    battery: { ...EMPTY_CATEGORY_DEFAULTS },
+    temperature: { ...EMPTY_CATEGORY_DEFAULTS, alertAbove: '30', alertBelow: '20' },
+    humidity: { ...EMPTY_CATEGORY_DEFAULTS, alertAbove: '30', alertBelow: '10' },
+    battery: { ...EMPTY_CATEGORY_DEFAULTS, alertBelow: '10' },
   };
 }
 
@@ -33,16 +35,16 @@ export function loadLocationSensorDefaults(): LocationSensorDefaults {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Partial<LocationSensorDefaults>;
-      const defaults = emptyLocationSensorDefaults();
+      const defaults = defaultLocationSensorDefaults();
       (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
         if (parsed[category]) defaults[category] = { ...defaults[category], ...parsed[category] };
       });
       return defaults;
     }
   } catch {
-    return emptyLocationSensorDefaults();
+    return defaultLocationSensorDefaults();
   }
-  return emptyLocationSensorDefaults();
+  return defaultLocationSensorDefaults();
 }
 
 export function saveLocationSensorDefaults(defaults: LocationSensorDefaults) {

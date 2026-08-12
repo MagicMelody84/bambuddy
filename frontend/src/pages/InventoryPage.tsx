@@ -2788,11 +2788,15 @@ function SpoolLocationFooter({
       {locationName && <span className="truncate">{locationName}</span>}
       <span className="text-bambu-gray/40">|</span>
       <div className="flex items-center gap-3">
-        {otherReadings.map((reading) => {
+        {otherReadings.map((reading, index) => {
           const Icon = iconForLocationSensor(reading);
+          // The first icon's own glyph leaves empty space at its left edge
+          // (e.g. the thermometer), which reads as a bigger gap to the "|"
+          // separator than the name-to-separator gap right before it.
+          const firstIconOffsetClass = index === 0 ? 'ml-[-3.6px]' : '';
           return (
             <span key={reading.id} title={reading.name} className="flex items-center gap-[3px]">
-              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(reading.device_class)}`} />
+              <Icon className={`w-3 h-3 ${locationSensorIconGapClass(reading.device_class)} ${firstIconOffsetClass}`} />
               <span className={locationSensorCellColor(reading, colorize, aboveColor, belowColor, optimalColor)}>
                 {describeLocationSensor(reading, t)}
               </span>
