@@ -5718,7 +5718,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Adicionar também os outros sensores?',
-      confirmMessage: 'O Home Assistant também encontrou sensores para este local. Escolha quais adicionar também:',
+      confirmMessage: 'O Bambuddy também encontrou outros sensores para este local. Escolha quais adicionar também.',
       added: 'Também adicionado: {{names}}',
       noneFound: 'Nenhum sensor de temperatura, umidade ou bateria correspondente foi encontrado para este local.',
     },

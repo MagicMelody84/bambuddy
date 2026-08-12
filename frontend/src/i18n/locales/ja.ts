@@ -5730,7 +5730,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '他のセンサーも追加しますか？',
-      confirmMessage: 'Home Assistant でこの保管場所の他のセンサーも見つかりました。追加するものを選んでください：',
+      confirmMessage: 'Bambuddy がこの保管場所の他のセンサーも見つけました。追加するものを選んでください。',
       added: '追加で連携しました: {{names}}',
       noneFound: 'この保管場所に一致する温度・湿度・バッテリーセンサーが見つかりませんでした。',
     },

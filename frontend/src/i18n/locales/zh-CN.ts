@@ -5717,7 +5717,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '是否也添加其他传感器？',
-      confirmMessage: 'Home Assistant 还为此位置找到了其他传感器。请选择要一并添加的传感器：',
+      confirmMessage: 'Bambuddy 还为此位置找到了其他传感器。请选择要一并添加的传感器。',
       added: '已同时添加：{{names}}',
       noneFound: '未找到该位置匹配的温度、湿度或电池传感器。',
     },

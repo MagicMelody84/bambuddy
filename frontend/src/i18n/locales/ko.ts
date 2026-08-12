@@ -5459,7 +5459,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '다른 센서도 추가할까요?',
-      confirmMessage: 'Home Assistant에서 이 위치의 다른 센서도 찾았습니다. 추가할 항목을 선택하세요:',
+      confirmMessage: 'Bambuddy가 이 위치의 다른 센서도 찾았습니다. 추가할 항목을 선택하세요.',
       added: '다음도 추가됨: {{names}}',
       noneFound: '이 위치에 일치하는 온도, 습도 또는 배터리 센서를 찾을 수 없습니다.',
     },

@@ -5719,7 +5719,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Ajouter aussi les autres capteurs ?',
-      confirmMessage: 'Home Assistant a également trouvé des capteurs pour cet emplacement. Choisissez ceux à ajouter aussi :',
+      confirmMessage: "Bambuddy a également trouvé d'autres capteurs pour cet emplacement. Choisissez ceux à ajouter aussi.",
       added: 'Également ajouté : {{names}}',
       noneFound: 'Aucun capteur de température, d\'humidité ou de batterie correspondant trouvé pour cet emplacement.',
     },

@@ -5729,7 +5729,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Auch die anderen Sensoren hinzufügen?',
-      confirmMessage: 'Home Assistant hat für diesen Lagerort auch weitere Sensoren gefunden. Wähle aus, welche zusätzlich hinzugefügt werden sollen:',
+      confirmMessage: 'Bambuddy hat für diesen Lagerort auch weitere Sensoren gefunden. Wähle aus, welche zusätzlich hinzugefügt werden sollen.',
       added: 'Zusätzlich hinzugefügt: {{names}}',
       noneFound: 'Keine passenden Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren für diesen Lagerort gefunden.',
     },

@@ -5693,7 +5693,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Diğer sensörler de eklensin mi?',
-      confirmMessage: 'Home Assistant bu konum için başka sensörler de buldu. Eklemek istediklerinizi seçin:',
+      confirmMessage: 'Bambuddy bu konum için başka sensörler de buldu. Eklemek istediklerinizi seçin.',
       added: 'Ayrıca eklendi: {{names}}',
       noneFound: 'Bu konum için eşleşen sıcaklık, nem veya pil sensörü bulunamadı.',
     },

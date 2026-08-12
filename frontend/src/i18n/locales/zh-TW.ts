@@ -5717,7 +5717,7 @@ export default {
     },
     autoAdd: {
       confirmTitle: '是否也新增其他感測器？',
-      confirmMessage: 'Home Assistant 也為此位置找到了其他感測器。請選擇要一併新增的感測器：',
+      confirmMessage: 'Bambuddy 也為此位置找到了其他感測器。請選擇要一併新增的感測器。',
       added: '已同時新增：{{names}}',
       noneFound: '未找到該位置相符的溫度、濕度或電池感測器。',
     },
