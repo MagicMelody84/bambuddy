@@ -2393,12 +2393,6 @@ export default {
     slicerStallTimeout: 'スライサー停止タイムアウト（分）',
     slicerStallTimeoutDescription: 'サイドカーからの進捗がこの時間なければスライスを中止します。進捗を報告し続ける重いモデルは、どれだけ時間がかかっても中断されません。進捗を報告しないサイドカーでは、この値が合計時間の上限になります。',
     slicerApiUrlDescription: 'slicer-APIサイドカーコンテナのURL。空のままにすると SLICER_API_URL / BAMBU_STUDIO_API_URL 環境変数のデフォルト値が使用されます。',
-    slicerBundlesRemoved: {
-      title: 'スライサーバンドル（削除済み）',
-      description: 'プリンタープリセットバンドル（.bbscfg）のインポートは削除されました。BambuStudioのバンドルエクスポートはユーザーがカスタマイズしたプリセットのみを含むため、インポートでは標準プロセス／フィラメントが提供されず、スライスは埋め込み設定にフォールバックしていました。',
-      alternatives: '個別カスタマイズには単一プリセットインポートを使うか、Bambu Cloud / Orca Cloudで同期してください。標準プリセットはスライサーサイドカーから自動的に提供されます。',
-      lookupOrder: 'スライス時のプリセット検索順: 1) インポート済み（ローカル）、2) Orca Cloud、3) Bambu Cloud、4) 標準（サイドカーのフォールバック）。',
-    },
     externalCameras: '外部カメラ',
     costTracking: 'コスト追跡',
     printsOnly: '印刷のみ',
@@ -4357,6 +4351,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     runningWithProgressMultiPlate: 'プレート {{plateIndex}} / {{plateCount}} • {{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     completedToast: '{{name}}をスライス済み',
+    externalWriteFallbackToast: '内部ライブラリに保存しました: 外部フォルダーに書き込めませんでした',
     failedTitle: 'スライスに失敗しました',
     failedToast: '{{name}}のスライスに失敗: {{detail}}',
     tier: {
@@ -4945,6 +4940,7 @@ export default {
     waitingForAmsStatus: '{{printer}} のAMSステータスを待機しています…',
     insufficientFilamentMessage: '割り当てられたスプールの一部は、この印刷に必要な量より残量が少ないです:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: 必要 {{required}}g、残り {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: 必要 {{required}}g、一致するスプール合計で {{remaining}}g（AMSフィラメントバックアップ）',
     printAnyway: 'それでも印刷',
     forceColorMatch: 'カラーマッチを強制',
     staggerPrinterStarts: 'プリンター開始を段階的に',
@@ -7155,6 +7151,8 @@ export default {
     back: '戻る',
     backToArchives: '印刷アーカイブに戻る',
     backToFiles: 'ファイル管理に戻る',
+    plates: 'プレート',
+    plateN: 'プレート {{n}}',
   },
   libraryTrash: {
     title: 'ゴミ箱',

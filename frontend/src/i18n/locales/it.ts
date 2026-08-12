@@ -2350,12 +2350,6 @@ export default {
     slicerStallTimeout: 'Timeout di inattivita dello slicer (minuti)',
     slicerStallTimeoutDescription: 'Interrompe uno slice dopo questo tempo senza progressi dal sidecar. I modelli pesanti che continuano a segnalare progressi non vengono mai interrotti, per quanto tempo richiedano. I sidecar che non segnalano progressi usano questo valore come limite di tempo totale.',
     slicerApiUrlDescription: 'URL del container sidecar slicer-API. Lascia vuoto per usare le variabili d\'ambiente SLICER_API_URL / BAMBU_STUDIO_API_URL.',
-    slicerBundlesRemoved: {
-      title: 'Bundle slicer (rimosso)',
-      description: 'L\'importazione di Printer Preset Bundle (.bbscfg) è stata rimossa. L\'esportazione di bundle di BambuStudio include solo preset personalizzati, quindi l\'importazione non forniva mai i processi / filamenti standard e lo slicing ricorreva alle impostazioni incorporate.',
-      alternatives: 'Usa Importazione preset singolo per personalizzazioni, o sincronizza tramite Bambu Cloud / Orca Cloud. I preset standard arrivano automaticamente dal sidecar dello slicer.',
-      lookupOrder: 'Ordine di ricerca dei preset al momento dello slicing: 1) Importato (locale), 2) Orca Cloud, 3) Bambu Cloud, 4) Standard (fallback sidecar).',
-    },
     externalCameras: 'Camere esterne',
     costTracking: 'Tracciamento costi',
     printsOnly: 'Solo stampe',
@@ -4345,6 +4339,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     runningWithProgressMultiPlate: 'Piatto {{plateIndex}} di {{plateCount}} • {{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     completedToast: '{{name}} sezionato',
+    externalWriteFallbackToast: 'Salvato nella libreria interna: impossibile scrivere nella cartella esterna',
     failedTitle: 'Slicing fallito',
     failedToast: 'Slicing di {{name}} fallito: {{detail}}',
     tier: {
@@ -4933,6 +4928,7 @@ export default {
     waitingForAmsStatus: 'In attesa dello stato AMS di {{printer}}…',
     insufficientFilamentMessage: 'Alcune bobine assegnate hanno meno filamento rimanente di quanto necessario per questa stampa:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: necessita di {{required}}g, rimanenti {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: necessita di {{required}}g, {{remaining}}g disponibili tra le bobine corrispondenti (AMS Filament Backup)',
     printAnyway: 'Stampa comunque',
     forceColorMatch: 'Forza corrispondenza colore',
     staggerPrinterStarts: 'Scaglionare avvii',
@@ -7143,6 +7139,8 @@ export default {
     back: 'Indietro',
     backToArchives: 'Torna agli archivi di stampa',
     backToFiles: 'Torna al gestore file',
+    plates: 'Piastre',
+    plateN: 'Piastra {{n}}',
   },
   libraryTrash: {
     title: 'Cestino',

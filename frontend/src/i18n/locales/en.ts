@@ -2413,12 +2413,6 @@ export default {
     slicerStallTimeout: 'Slicer stall timeout (minutes)',
     slicerStallTimeoutDescription: 'Give up on a slice after this long with no progress from the sidecar. Heavy models that keep reporting progress are never cut off, however long they take. Sidecars that do not report progress use this as a total time limit instead.',
     slicerApiUrlDescription: 'URL of the slicer-API sidecar container. Leave blank to use the SLICER_API_URL / BAMBU_STUDIO_API_URL env var defaults.',
-    slicerBundlesRemoved: {
-      title: 'Slicer Bundles (removed)',
-      description: 'Printer Preset Bundle (.bbscfg) import was removed. BambuStudio\'s bundle export only includes user-customised presets, so the import never delivered standard processes / filaments and slicing fell back to embedded settings.',
-      alternatives: 'Use Single Preset Import for individual customs, or sync via Bambu Cloud / Orca Cloud. Stock presets come from the slicer sidecar automatically.',
-      lookupOrder: 'Slice-time preset lookup order: 1) Imported (local), 2) Orca Cloud, 3) Bambu Cloud, 4) Standard (sidecar fallback).',
-    },
     externalCameras: 'External Cameras',
     costTracking: 'Cost Tracking',
     billingEnabled: 'Enable Billing',
@@ -4391,6 +4385,7 @@ export default {
     runningWithProgress: '{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}',
     runningWithProgressMultiPlate: 'Plate {{plateIndex}} of {{plateCount}} • {{name}} — {{stage}} ({{percent}}%) — {{elapsed}}',
     completedToast: 'Sliced {{name}}',
+    externalWriteFallbackToast: 'Saved to the internal library: the external folder could not be written to',
     failedTitle: 'Slicing failed',
     failedToast: 'Slicing {{name}} failed: {{detail}}',
     tier: {
@@ -4989,6 +4984,7 @@ export default {
     waitingForAmsStatus: 'Waiting for AMS status from {{printer}}…',
     insufficientFilamentMessage: 'Some assigned spools have less filament remaining than this print needs:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: needs {{required}}g, remaining {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: needs {{required}}g, {{remaining}}g available across matching spools (AMS Filament Backup)',
     printAnyway: 'Print anyway',
     forceColorMatch: 'Force color match',
     staggerPrinterStarts: 'Stagger printer starts',
@@ -7205,6 +7201,8 @@ export default {
     back: 'Back',
     backToArchives: 'Back to Print Archives',
     backToFiles: 'Back to File Manager',
+    plates: 'Plates',
+    plateN: 'Plate {{n}}',
   },
   libraryTrash: {
     title: 'Trash',

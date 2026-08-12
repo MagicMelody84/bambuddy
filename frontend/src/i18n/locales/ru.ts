@@ -2267,12 +2267,6 @@ export default {
     slicerStallTimeout: 'Тайм-аут простоя слайсера (минуты)',
     slicerStallTimeoutDescription: 'Прервать нарезку, если sidecar не сообщает о прогрессе в течение этого времени. Тяжёлые модели, которые продолжают сообщать о прогрессе, не прерываются, сколько бы времени ни потребовалось. Для sidecar без отчёта о прогрессе это значение используется как общий лимит времени.',
     slicerApiUrlDescription: "URL контейнера API-службы слайсера. Оставьте пустым, чтобы использовать значения переменных окружения SLICER_API_URL или BAMBU_STUDIO_API_URL.",
-    slicerBundlesRemoved: {
-      title: "Пакеты профилей слайсера (удалено)",
-      description: "Импорт пакетов профилей принтера .bbscfg удалён. Экспорт пакета из BambuStudio содержит только пользовательские профили, поэтому стандартные процессы и филаменты не импортировались, а нарезка использовала встроенные настройки.",
-      alternatives: "Для отдельных пользовательских профилей используйте импорт одного профиля либо синхронизацию через Bambu Cloud или Orca Cloud. Стандартные профили автоматически предоставляет служба слайсера.",
-      lookupOrder: "Порядок поиска профиля при нарезке: 1) импортированный локально, 2) Orca Cloud, 3) Bambu Cloud, 4) стандартный профиль службы слайсера.",
-    },
     externalCameras: "Внешние камеры",
     costTracking: "Учёт затрат",
     billingEnabled: "Включить расчёты",
@@ -4140,6 +4134,7 @@ export default {
     runningWithProgress: "{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}",
     runningWithProgressMultiPlate: "Пластина {{plateIndex}} из {{plateCount}} • {{name}} — {{stage}} ({{percent}}%) — {{elapsed}}",
     completedToast: "Нарезка {{name}} завершена",
+    externalWriteFallbackToast: "Сохранено во внутренней библиотеке: не удалось записать во внешнюю папку",
     failedTitle: "Ошибка нарезки",
     failedToast: "Не удалось нарезать {{name}}: {{detail}}",
     tier: {
@@ -4704,6 +4699,7 @@ export default {
     waitingForAmsStatus: "Ожидание состояния AMS от принтера {{printer}}…",
     insufficientFilamentMessage: "На некоторых назначенных катушках осталось меньше филамента, чем требуется для этой печати:",
     insufficientFilamentLine: "{{printer}} — {{slot}}: требуется {{required}} г, осталось {{remaining}} г",
+    insufficientFilamentLinePooled: "{{printer}} — {{slot}}: требуется {{required}} г, доступно {{remaining}} г на подходящих катушках (резервный филамент AMS)",
     printAnyway: "Всё равно печатать",
     forceColorMatch: "Обязательно учитывать цвет",
     staggerPrinterStarts: "Запускать принтеры с задержкой",
@@ -6780,6 +6776,8 @@ export default {
     back: "Назад",
     backToArchives: "Вернуться в архив печати",
     backToFiles: "Вернуться в файловый менеджер",
+    plates: "Пластины",
+    plateN: "Пластина {{n}}",
   },
   libraryTrash: {
     title: "Корзина",

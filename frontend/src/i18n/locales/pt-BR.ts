@@ -2350,12 +2350,6 @@ export default {
     slicerStallTimeout: 'Tempo limite de inatividade do fatiador (minutos)',
     slicerStallTimeoutDescription: 'Desiste de um fatiamento apos esse tempo sem progresso do sidecar. Modelos pesados que continuam relatando progresso nunca sao interrompidos, por mais que demorem. Sidecars que nao relatam progresso usam este valor como limite de tempo total.',
     slicerApiUrlDescription: 'URL do contêiner sidecar slicer-API. Deixe em branco para usar SLICER_API_URL / BAMBU_STUDIO_API_URL.',
-    slicerBundlesRemoved: {
-      title: 'Bundles do fatiador (removido)',
-      description: 'A importação de Printer Preset Bundles (.bbscfg) foi removida. A exportação de bundle do BambuStudio inclui apenas predefinições personalizadas, portanto a importação nunca entregava processos / filamentos padrão e o fatiamento recorria às configurações incorporadas.',
-      alternatives: 'Use a Importação de predefinição individual para personalizações, ou sincronize via Bambu Cloud / Orca Cloud. As predefinições padrão vêm do sidecar do fatiador automaticamente.',
-      lookupOrder: 'Ordem de busca de predefinições no fatiamento: 1) Importada (local), 2) Orca Cloud, 3) Bambu Cloud, 4) Padrão (fallback do sidecar).',
-    },
     externalCameras: 'Câmeras Externas',
     costTracking: 'Rastreamento de Custos',
     printsOnly: 'Apenas Impressões',
@@ -4345,6 +4339,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     runningWithProgressMultiPlate: 'Bandeja {{plateIndex}} de {{plateCount}} • {{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     completedToast: '{{name}} fatiado',
+    externalWriteFallbackToast: 'Salvo na biblioteca interna: não foi possível gravar na pasta externa',
     failedTitle: 'Falha ao fatiar',
     failedToast: 'Falha ao fatiar {{name}}: {{detail}}',
     tier: {
@@ -4933,6 +4928,7 @@ export default {
     waitingForAmsStatus: 'Aguardando o status do AMS de {{printer}}…',
     insufficientFilamentMessage: 'Alguns dos carretéis atribuídos têm menos filamento restante do que o necessário para esta impressão:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: necessário {{required}}g, restante {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: necessário {{required}}g, {{remaining}}g disponíveis entre bobinas correspondentes (AMS Filament Backup)',
     printAnyway: 'Imprimir mesmo assim',
     forceColorMatch: 'Forçar correspondência de cor',
     staggerPrinterStarts: 'Escalonar inícios',
@@ -7143,6 +7139,8 @@ export default {
     back: 'Voltar',
     backToArchives: 'Voltar para os arquivos de impressão',
     backToFiles: 'Voltar para o gerenciador de arquivos',
+    plates: 'Placas',
+    plateN: 'Placa {{n}}',
   },
   libraryTrash: {
     title: 'Lixeira',

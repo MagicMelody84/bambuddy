@@ -2395,12 +2395,6 @@ export default {
     slicerStallTimeout: '切片器停滯逾時（分鐘）',
     slicerStallTimeoutDescription: '若 sidecar 在此時長內沒有任何進度，則放棄本次切片。持續回報進度的複雜模型無論耗時多久都不會被中斷。不回報進度的 sidecar 則將此值作為總時長上限。',
     slicerApiUrlDescription: 'slicer-API sidecar 容器的 URL。留空以使用 SLICER_API_URL / BAMBU_STUDIO_API_URL 環境變數預設值。',
-    slicerBundlesRemoved: {
-      title: '切片器捆綁包（已移除）',
-      description: '印表機預設套件 (.bbscfg) 匯入已移除。BambuStudio 的套件匯出僅包含使用者自訂的預設，因此匯入從未提供標準製程 / 耗材，切片會回退到嵌入設定。',
-      alternatives: '對於單獨的自訂，請使用單一預設匯入，或透過 Bambu Cloud / Orca Cloud 同步。標準預設自動來自切片器側車。',
-      lookupOrder: '切片時的預設查找順序：1) 已匯入（本機），2) Orca Cloud，3) Bambu Cloud，4) 標準（側車回退）。',
-    },
     externalCameras: '外部攝影機',
     costTracking: '成本追蹤',
     printsOnly: '僅列印',
@@ -4345,6 +4339,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     runningWithProgressMultiPlate: '盤面 {{plateIndex}} / {{plateCount}} • {{name}} – {{stage}} ({{percent}}%) – {{elapsed}}',
     completedToast: '已切片 {{name}}',
+    externalWriteFallbackToast: '已儲存到內部庫：無法寫入外部資料夾',
     failedTitle: '切片失敗',
     failedToast: '切片 {{name}} 失敗：{{detail}}',
     tier: {
@@ -4933,6 +4928,7 @@ export default {
     waitingForAmsStatus: '正在等待 {{printer}} 的 AMS 狀態…',
     insufficientFilamentMessage: '部分已分配料盤的剩餘耗材少於本次列印所需：',
     insufficientFilamentLine: '{{printer}} - {{slot}}：需要 {{required}}g，剩餘 {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}：需要 {{required}}g，相符料卷共剩餘 {{remaining}}g（AMS 備用料盤）',
     printAnyway: '仍然列印',
     forceColorMatch: '強制顏色匹配',
     staggerPrinterStarts: '錯開印表機啟動',
@@ -7141,6 +7137,8 @@ export default {
     back: '返回',
     backToArchives: '返回列印歸檔',
     backToFiles: '返回檔案管理器',
+    plates: '板',
+    plateN: '板 {{n}}',
   },
   libraryTrash: {
     title: '資源回收筒',

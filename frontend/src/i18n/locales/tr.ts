@@ -2398,12 +2398,6 @@ export default {
     slicerStallTimeout: 'Dilimleyici duraklama zaman asimi (dakika)',
     slicerStallTimeoutDescription: 'Sidecar bu sure boyunca ilerleme bildirmezse dilimleme iptal edilir. Ilerleme bildirmeye devam eden agir modeller ne kadar surerse sursun kesilmez. Ilerleme bildirmeyen sidecar surumleri bu degeri toplam sure siniri olarak kullanir.',
     slicerApiUrlDescription: 'Dilimleyici-API yardımcı bileşen konteynerinin URL\'si. SLICER_API_URL / BAMBU_STUDIO_API_URL ortam değişkeni varsayılanlarını kullanmak için boş bırakın.',
-    slicerBundlesRemoved: {
-      title: 'Dilimleyici Paketleri (kaldırıldı)',
-      description: 'Yazıcı Ön Ayar Paketi (.bbscfg) içe aktarma kaldırıldı. BambuStudio\'nun paket dışa aktarması yalnızca kullanıcı tarafından özelleştirilmiş ön ayarları içerir, bu nedenle içe aktarma hiçbir zaman standart süreçleri / filamentleri sağlamadı ve dilimleme gömülü ayarlara geri döndü.',
-      alternatives: 'Bireysel özelleştirmeler için Tekli Ön Ayar İçe Aktarma\'yı kullanın veya Bambu Cloud / Orca Cloud üzerinden senkronize edin. Standart ön ayarlar otomatik olarak dilimleyici sidecar\'ından gelir.',
-      lookupOrder: 'Dilimleme sırasında ön ayar arama sırası: 1) İçe aktarılmış (yerel), 2) Orca Cloud, 3) Bambu Cloud, 4) Standart (sidecar yedeği).',
-    },
     externalCameras: 'Harici Kameralar',
     costTracking: 'Maliyet Takibi',
     billingEnabled: 'Faturalandırmayı etkinleştir',
@@ -4346,6 +4340,7 @@ export default {
     runningWithProgress: '{{name}} — {{stage}} (%{{percent}}) — {{elapsed}}',
     runningWithProgressMultiPlate: '{{plateCount}}/{{plateIndex}} plaka • {{name}} — {{stage}} (%{{percent}}) — {{elapsed}}',
     completedToast: '{{name}} dilimlendi',
+    externalWriteFallbackToast: 'Dahili kitaplığa kaydedildi: harici klasöre yazılamadı',
     failedTitle: 'Dilimleme başarısız',
     failedToast: '{{name}} dilimleme başarısız: {{detail}}',
     tier: {
@@ -4922,6 +4917,7 @@ export default {
     waitingForAmsStatus: '{{printer}} için AMS durumu bekleniyor…',
     insufficientFilamentMessage: 'Bazı atanmış makaralarda bu baskının ihtiyaç duyduğundan daha az filament kaldı:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: {{required}}g gerekli, {{remaining}}g kaldı',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: {{required}}g gerekli, eşleşen makaralarda toplam {{remaining}}g (AMS Filament Backup)',
     printAnyway: 'Yine de yazdır',
     forceColorMatch: 'Renk eşleşmesini zorla',
     staggerPrinterStarts: 'Yazıcı başlangıçlarını kademelendir',
@@ -7094,6 +7090,8 @@ export default {
     back: 'Geri',
     backToArchives: 'Baskı Arşivlerine Dön',
     backToFiles: 'Dosya Yöneticisine Dön',
+    plates: 'Plakalar',
+    plateN: 'Plaka {{n}}',
   },
   libraryTrash: {
     title: 'Çöp Kutusu',

@@ -2350,12 +2350,6 @@ export default {
     slicerStallTimeout: "Delai d'inactivite du trancheur (minutes)",
     slicerStallTimeoutDescription: 'Abandonne un decoupage apres cette duree sans progression du sidecar. Les modeles lourds qui continuent a signaler leur progression ne sont jamais interrompus, quel que soit le temps necessaire. Les sidecars qui ne signalent pas de progression utilisent cette valeur comme limite de duree totale.',
     slicerApiUrlDescription: 'URL du conteneur sidecar slicer-API. Laisser vide pour utiliser les variables d\'environnement SLICER_API_URL / BAMBU_STUDIO_API_URL.',
-    slicerBundlesRemoved: {
-      title: 'Bundles de slicer (supprimé)',
-      description: 'L\'import de Printer Preset Bundles (.bbscfg) a été supprimé. L\'export de bundle de BambuStudio ne comprend que les préréglages personnalisés, donc l\'import ne livrait jamais les processus / filaments standard et le découpage retombait sur les paramètres intégrés.',
-      alternatives: 'Utilisez l\'Import de préréglage unique pour les personnalisations, ou synchronisez via Bambu Cloud / Orca Cloud. Les préréglages standard viennent automatiquement du sidecar du trancheur.',
-      lookupOrder: 'Ordre de recherche des préréglages au découpage : 1) Importé (local), 2) Orca Cloud, 3) Bambu Cloud, 4) Standard (repli sidecar).',
-    },
     externalCameras: 'Caméras externes',
     costTracking: 'Suivi des coûts',
     printsOnly: 'Impressions uniquement',
@@ -4346,6 +4340,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}} %) – {{elapsed}}',
     runningWithProgressMultiPlate: 'Plateau {{plateIndex}} sur {{plateCount}} • {{name}} – {{stage}} ({{percent}} %) – {{elapsed}}',
     completedToast: '{{name}} découpé',
+    externalWriteFallbackToast: 'Enregistré dans la bibliothèque interne : impossible d\'écrire dans le dossier externe',
     failedTitle: 'Échec du découpage',
     failedToast: 'Échec du découpage de {{name}} : {{detail}}',
     tier: {
@@ -4934,6 +4929,7 @@ export default {
     waitingForAmsStatus: 'En attente de l\'état de l\'AMS de {{printer}}…',
     insufficientFilamentMessage: 'Certaines bobines assignées ont moins de filament restant que nécessaire pour cette impression :',
     insufficientFilamentLine: '{{printer}} - {{slot}} : nécessite {{required}}g, restant {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}} : nécessite {{required}}g, {{remaining}}g disponibles sur les bobines correspondantes (AMS Filament Backup)',
     printAnyway: 'Imprimer quand même',
     forceColorMatch: 'Forcer correspondance des couleurs',
     staggerPrinterStarts: 'Échelonner démarrages',
@@ -7144,6 +7140,8 @@ export default {
     back: 'Retour',
     backToArchives: 'Retour aux archives d\'impression',
     backToFiles: 'Retour au gestionnaire de fichiers',
+    plates: 'Plateaux',
+    plateN: 'Plaque {{n}}',
   },
   libraryTrash: {
     title: 'Corbeille',

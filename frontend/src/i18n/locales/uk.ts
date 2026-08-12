@@ -2413,12 +2413,6 @@ export default {
     slicerStallTimeout: 'Тайм-аут простою слайсера (хвилини)',
     slicerStallTimeoutDescription: 'Перервати нарізку, якщо sidecar не повідомляє про прогрес протягом цього часу. Важкі моделі, які продовжують повідомляти про прогрес, ніколи не перериваються, скільки б часу не знадобилося. Для sidecar без звіту про прогрес це значення використовується як загальний ліміт часу.',
     slicerApiUrlDescription: "URL контейнера допоміжного сервісу slicer-API. Залиште поле порожнім, щоб використовувати типові значення зі змінних середовища SLICER_API_URL / BAMBU_STUDIO_API_URL.",
-    slicerBundlesRemoved: {
-      title: "Пакети профілів слайсера (вилучено)",
-      description: "Імпорт пакетів профілів принтера (.bbscfg) вилучено. Експорт пакетів Bambu Studio містить лише змінені користувачем профілі, тому імпорт не надавав стандартних профілів процесу й філаменту, а під час нарізання використовувалися вбудовані налаштування.",
-      alternatives: "Використовуйте імпорт окремого профілю для власних профілів або синхронізацію через Bambu Cloud / Orca Cloud. Стандартні профілі автоматично надходять із допоміжного сервісу слайсера.",
-      lookupOrder: "Порядок пошуку профілів під час нарізання: 1) імпортовані локально, 2) Orca Cloud, 3) Bambu Cloud, 4) стандартні профілі слайсера.",
-    },
     externalCameras: "Зовнішні камери",
     costTracking: "Відстеження витрат",
     billingEnabled: "Увімкнути розрахунки",
@@ -4390,6 +4384,7 @@ export default {
     runningWithProgress: "{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}",
     runningWithProgressMultiPlate: "Пластина {{plateIndex}} з {{plateCount}} • {{name}} — {{stage}} ({{percent}}%) — {{elapsed}}",
     completedToast: "Нарізання {{name}} завершено",
+    externalWriteFallbackToast: "Збережено у внутрішній бібліотеці: не вдалося записати в зовнішню теку",
     failedTitle: "Помилка нарізання",
     failedToast: "Помилка нарізання {{name}}: {{detail}}",
     tier: {
@@ -4987,6 +4982,7 @@ export default {
     waitingForAmsStatus: "Очікування статусу AMS від {{printer}}…",
     insufficientFilamentMessage: "У деяких призначених котушках залишилося менше філаменту, ніж потрібно для друку:",
     insufficientFilamentLine: "{{printer}} - {{slot}}: потрібно {{required}}g, залишилося {{remaining}}g",
+    insufficientFilamentLinePooled: "{{printer}} - {{slot}}: потрібно {{required}}g, доступно {{remaining}}g на відповідних котушках (резервне перемикання філаменту AMS)",
     printAnyway: "Усе одно друкувати",
     forceColorMatch: "Примусовий збіг кольорів",
     staggerPrinterStarts: "Запускати принтери почергово",
@@ -7198,6 +7194,8 @@ export default {
     back: "Назад",
     backToArchives: "Назад до друку архівів",
     backToFiles: "Назад до файлового менеджера",
+    plates: "Пластини",
+    plateN: "Пластина {{n}}",
   },
   libraryTrash: {
     title: "Кошик",

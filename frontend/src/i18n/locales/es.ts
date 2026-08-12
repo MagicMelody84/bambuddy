@@ -2397,12 +2397,6 @@ export default {
     slicerStallTimeout: 'Tiempo de espera por inactividad del laminador (minutos)',
     slicerStallTimeoutDescription: 'Abandona un laminado tras este tiempo sin progreso del sidecar. Los modelos pesados que siguen informando progreso nunca se interrumpen, por mucho que tarden. Los sidecars que no informan progreso usan este valor como limite de tiempo total.',
     slicerApiUrlDescription: 'URL del contenedor auxiliar de la API del laminador. Déjelo en blanco para usar los valores predeterminados de las variables de entorno SLICER_API_URL / BAMBU_STUDIO_API_URL.',
-    slicerBundlesRemoved: {
-      title: 'Paquetes del laminador (eliminado)',
-      description: 'Se eliminó la importación de paquetes de preajustes de impresora (.bbscfg). La exportación de paquetes de BambuStudio solo incluye preajustes personalizados, por lo que la importación nunca entregaba procesos / filamentos estándar y el laminado recurría a la configuración incrustada.',
-      alternatives: 'Usa Importación de preajuste individual para personalizaciones, o sincroniza vía Bambu Cloud / Orca Cloud. Los preajustes estándar vienen del sidecar del laminador automáticamente.',
-      lookupOrder: 'Orden de búsqueda de preajustes al laminar: 1) Importado (local), 2) Orca Cloud, 3) Bambu Cloud, 4) Estándar (sidecar de respaldo).',
-    },
     externalCameras: 'Cámaras externas',
     costTracking: 'Seguimiento de costes',
     billingEnabled: 'Activar facturación',
@@ -4359,6 +4353,7 @@ export default {
     runningWithProgress: '{{name}} — {{stage}} ({{percent}}%) — {{elapsed}}',
     runningWithProgressMultiPlate: 'Bandeja {{plateIndex}} de {{plateCount}} • {{name}} — {{stage}} ({{percent}}%) — {{elapsed}}',
     completedToast: '{{name}} laminado',
+    externalWriteFallbackToast: 'Guardado en la biblioteca interna: no se pudo escribir en la carpeta externa',
     failedTitle: 'Error al laminar',
     failedToast: 'Error al laminar {{name}}: {{detail}}',
     tier: {
@@ -4952,6 +4947,7 @@ export default {
     waitingForAmsStatus: 'Esperando el estado del AMS de {{printer}}…',
     insufficientFilamentMessage: 'Algunas bobinas asignadas tienen menos filamento restante del que necesita esta impresión:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: necesita {{required}} g, restante {{remaining}} g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: necesita {{required}} g, {{remaining}} g disponibles entre bobinas equivalentes (AMS Filament Backup)',
     printAnyway: 'Imprimir de todos modos',
     forceColorMatch: 'Forzar la coincidencia de color',
     staggerPrinterStarts: 'Escalonar los inicios de las impresoras',
@@ -7163,6 +7159,8 @@ export default {
     back: 'Atrás',
     backToArchives: 'Volver a los archivos de impresión',
     backToFiles: 'Volver al gestor de archivos',
+    plates: 'Camas',
+    plateN: 'Cama {{n}}',
   },
   libraryTrash: {
     title: 'Papelera',

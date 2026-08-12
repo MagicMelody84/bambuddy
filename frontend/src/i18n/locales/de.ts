@@ -2394,12 +2394,6 @@ export default {
     slicerStallTimeout: 'Zeitlimit bei Slicer-Stillstand (Minuten)',
     slicerStallTimeoutDescription: 'Bricht einen Slice-Vorgang ab, wenn der Sidecar so lange keinen Fortschritt meldet. Aufwendige Modelle, die weiter Fortschritt melden, werden nie abgebrochen, egal wie lange sie brauchen. Sidecars ohne Fortschrittsmeldung nutzen diesen Wert stattdessen als Gesamtzeitlimit.',
     slicerApiUrlDescription: 'URL des Slicer-API-Sidecar-Containers. Leer lassen, um die SLICER_API_URL- bzw. BAMBU_STUDIO_API_URL-Umgebungsvariablen zu nutzen.',
-    slicerBundlesRemoved: {
-      title: 'Slicer-Bundles (entfernt)',
-      description: 'Der Import von Drucker-Voreinstellungs-Bundles (.bbscfg) wurde entfernt. Der Bundle-Export von BambuStudio enthält nur benutzerdefinierte Voreinstellungen, daher lieferte der Import nie die Standard-Prozesse / -Filamente, und das Slicen fiel auf eingebettete Einstellungen zurück.',
-      alternatives: 'Verwende Einzel-Voreinstellungs-Import für individuelle Anpassungen oder synchronisiere via Bambu Cloud / Orca Cloud. Standard-Voreinstellungen kommen automatisch vom Slicer-Sidecar.',
-      lookupOrder: 'Reihenfolge der Voreinstellungssuche beim Slicen: 1) Importiert (lokal), 2) Orca Cloud, 3) Bambu Cloud, 4) Standard (Sidecar-Fallback).',
-    },
     externalCameras: 'Externe Kameras',
     costTracking: 'Kostenverfolgung',
     billingEnabled: 'Abrechnung aktivieren',
@@ -4357,6 +4351,7 @@ export default {
     runningWithProgress: '{{name}} – {{stage}} ({{percent}} %) – {{elapsed}}',
     runningWithProgressMultiPlate: 'Plate {{plateIndex}} von {{plateCount}} • {{name}} – {{stage}} ({{percent}} %) – {{elapsed}}',
     completedToast: '{{name}} wurde gesliced',
+    externalWriteFallbackToast: 'In der internen Bibliothek gespeichert: In den externen Ordner konnte nicht geschrieben werden',
     failedTitle: 'Slicen fehlgeschlagen',
     failedToast: 'Slicen von {{name}} fehlgeschlagen: {{detail}}',
     tier: {
@@ -4945,6 +4940,7 @@ export default {
     waitingForAmsStatus: 'Warte auf AMS-Status von {{printer}}…',
     insufficientFilamentMessage: 'Einige zugewiesene Spulen haben weniger Filament als dieser Druck benötigt:',
     insufficientFilamentLine: '{{printer}} - {{slot}}: benötigt {{required}}g, verbleibend {{remaining}}g',
+    insufficientFilamentLinePooled: '{{printer}} - {{slot}}: benötigt {{required}}g, {{remaining}}g über passende Spulen verfügbar (AMS Filament Backup)',
     printAnyway: 'Trotzdem drucken',
     forceColorMatch: 'Farbe erzwingen',
     staggerPrinterStarts: 'Druckerstarts staffeln',
@@ -7155,6 +7151,8 @@ export default {
     back: 'Zurück',
     backToArchives: 'Zurück zum Druckarchiv',
     backToFiles: 'Zurück zum Dateimanager',
+    plates: 'Platten',
+    plateN: 'Platte {{n}}',
   },
   libraryTrash: {
     title: 'Papierkorb',
