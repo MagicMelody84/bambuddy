@@ -4,6 +4,8 @@ import {
   normalizeColor,
   normalizeColorForCompare,
   colorsAreSimilar,
+  filamentTypesCompatible,
+  findNearestSimilar,
   formatSlotLabel,
   getGlobalTrayId,
   preferLowestSortKey,
@@ -256,7 +258,7 @@ export function buildFilamentComparison(
       const manualLoaded = loadedFilaments.find((f) => f.globalTrayId === manualTrayId);
 
       if (manualLoaded) {
-        const typeMatch = manualLoaded.type?.toUpperCase() === req.type?.toUpperCase();
+        const typeMatch = filamentTypesCompatible(manualLoaded.type, req.type);
         const colorMatch = coloursMatch(manualLoaded.color, req.color);
 
         let status: FilamentStatus;
@@ -329,19 +331,19 @@ export function buildFilamentComparison(
         }
         exactMatch = idxMatches.find(
           (f) =>
-            f.type?.toUpperCase() === req.type?.toUpperCase() &&
+            filamentTypesCompatible(f.type, req.type) &&
             normalizeColorForCompare(f.color) === normalizeColorForCompare(req.color)
         );
         if (!exactMatch) {
-          similarMatch = idxMatches.find(
-            (f) =>
-              f.type?.toUpperCase() === req.type?.toUpperCase() &&
-              colorsAreSimilar(f.color, req.color)
+          similarMatch = findNearestSimilar(
+            idxMatches.filter((f) => filamentTypesCompatible(f.type, req.type)),
+            req.color,
+            (f) => f.color,
           );
         }
         if (!exactMatch && !similarMatch) {
           typeOnlyMatch = idxMatches.find(
-            (f) => f.type?.toUpperCase() === req.type?.toUpperCase()
+            (f) => filamentTypesCompatible(f.type, req.type)
           );
         }
       }
@@ -351,19 +353,19 @@ export function buildFilamentComparison(
     if (!idxMatch && !exactMatch && !similarMatch && !typeOnlyMatch) {
       exactMatch = available.find(
         (f) =>
-          f.type?.toUpperCase() === req.type?.toUpperCase() &&
+          filamentTypesCompatible(f.type, req.type) &&
           normalizeColorForCompare(f.color) === normalizeColorForCompare(req.color)
       );
       if (!exactMatch) {
-        similarMatch = available.find(
-          (f) =>
-            f.type?.toUpperCase() === req.type?.toUpperCase() &&
-            colorsAreSimilar(f.color, req.color)
+        similarMatch = findNearestSimilar(
+          available.filter((f) => filamentTypesCompatible(f.type, req.type)),
+          req.color,
+          (f) => f.color,
         );
       }
       if (!exactMatch && !similarMatch) {
         typeOnlyMatch = available.find(
-          (f) => f.type?.toUpperCase() === req.type?.toUpperCase()
+          (f) => filamentTypesCompatible(f.type, req.type)
         );
       }
     }
