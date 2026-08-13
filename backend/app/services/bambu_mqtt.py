@@ -286,8 +286,11 @@ def apply_tray_exist_bits(
 # doing exactly that is what #2800 was.
 _RACK_NOZZLE_IDS = frozenset(range(16, 22))
 
-# BambuStudio dispatches a fixed-length nozzle_mapping on rack models: one
-# physical nozzle ID per filament slot, -1 for slots the plate does not print.
+# Ceiling on the nozzle_mapping we will build, not the length we send. The wire
+# carries one physical nozzle ID per filament slot the plate declares, and -1
+# for a slot it does not print: BambuStudio's own dispatch of a three-filament
+# H2C plate is [1, 16, 16], and the hardware A/B in #2800 ran four-slot plates
+# as four entries. Padding to a fixed 32 was an over-generalisation of that.
 _RACK_WIRE_SLOTS = 32
 
 # The two carriages, as extruder indices in the form the queue stores (already
@@ -317,7 +320,8 @@ def resolve_rack_nozzle_mapping(
     plate does not print. ``rack_nozzle_id`` is the rack position the printer
     reports as live.
 
-    Returns a ``_RACK_WIRE_SLOTS``-long list of physical nozzle IDs, or None
+    Returns one physical nozzle ID per slot given, matching BambuStudio's own
+    dispatch length, or None
     when the mapping cannot be resolved with confidence -- in which case the
     caller omits the field entirely and the firmware falls back to its own
     nozzle pick, exactly as it did before this translation existed. Omitting
@@ -367,7 +371,7 @@ def resolve_rack_nozzle_mapping(
     if _RACK_EXTRUDER_ID not in normalised:
         return None
 
-    wire = [-1] * _RACK_WIRE_SLOTS
+    wire = [-1] * len(normalised)
     for index, extruder in enumerate(normalised):
         if extruder < 0:
             continue
@@ -724,7 +728,15 @@ STAGE_NAMES = {
 
 def get_stage_name(stage: int) -> str:
     """Get human-readable stage name from stage number."""
-    return STAGE_NAMES.get(stage, f"Unknown stage ({stage})")
+    try:
+        return STAGE_NAMES.get(stage, f"Unknown stage ({stage})")
+    except TypeError:
+        # `stage` is an int by convention only -- it comes straight out of the
+        # printer's JSON, and an unhashable value there would otherwise raise
+        # from inside the f-string that builds the stage-change log line, which
+        # is evaluated on every transition whatever the log level is set to.
+        # Labelling a value must not be able to abort the state update.
+        return f"Unknown stage ({stage})"
 
 
 # #2547 end-of-print telemetry probe.
@@ -813,6 +825,7 @@ class BambuMQTTClient:
         on_print_running_observed: Callable[[dict], None] | None = None,
         on_finish_photo_moment: Callable[[dict], None] | None = None,
         on_assignment_verified: Callable[[int, int, bool, dict], None] | None = None,
+        on_tray_change: Callable[[int, int], None] | None = None,
     ):
         self.ip_address = ip_address
         self.serial_number = serial_number
@@ -845,6 +858,12 @@ class BambuMQTTClient:
         # the same shape as on_print_start (filename / subtask_name /
         # remaining_time / raw_data / ams_mapping).
         self.on_print_running_observed = on_print_running_observed
+        # Fired for every entry appended to ``state.tray_change_log`` so main.py
+        # can mirror it into ``active_print_sessions``. The in-memory log dies
+        # with the process, and a long print outliving a restart would
+        # otherwise lose the segment boundaries the usage tracker splits on.
+        # Receives (global_tray_id, layer_num).
+        self.on_tray_change = on_tray_change
         # #1721: fired the moment the printer enters the end-of-print
         # "Filament unloading" phase (stg_cur=22 while progress>=99 or
         # we've hit the last layer / remaining_time<=0). This is the
@@ -882,6 +901,9 @@ class BambuMQTTClient:
         # is indistinguishable from the firmware abandoning it — so the cycle-end
         # log would otherwise blame the printer for our own decision (#2770).
         self._drying_stops_sent: set[int] = set()
+        # Stage numbers this printer has reported that STAGE_NAMES has no entry
+        # for, so each is reported once rather than on every transition into it.
+        self._unnamed_stages_seen: set[int] = set()
 
         self.state = PrinterState()
         self._client: mqtt.Client | None = None
@@ -2670,6 +2692,8 @@ class BambuMQTTClient:
                             tn,
                             self.state.layer_num,
                         )
+                        if self.on_tray_change:
+                            self.on_tray_change(tn, self.state.layer_num)
                     self.state.last_loaded_tray = self.state.tray_now
 
                 self._debug_on_change(
@@ -3495,6 +3519,39 @@ class BambuMQTTClient:
                 logger.debug(
                     f"[{self.serial_number}] stg_cur changed: {prev_stg} -> {new_stg} ({get_stage_name(new_stg)})"
                 )
+                # A stage we cannot name is the one worth seeing at the default
+                # log level: the DEBUG line above is off in normal running, so
+                # an unnamed stage otherwise reaches the user as "Unknown stage
+                # (72)" on a card with nothing behind it to say when it
+                # happened or what the printer was doing. Recorded once per
+                # stage number per session, with the stage it came from and the
+                # print state, which is what naming it later needs. Guarded on
+                # the int type because the field is whatever the firmware sent.
+                if (
+                    isinstance(new_stg, int)
+                    and not isinstance(new_stg, bool)
+                    # -1 is Bambuddy's own "not in a stage" sentinel and the
+                    # initial value of the field, not something the firmware
+                    # reports; every print would otherwise report it on the way
+                    # out of its last real stage.
+                    and new_stg != -1
+                    and new_stg not in STAGE_NAMES
+                    and new_stg not in self._unnamed_stages_seen
+                ):
+                    self._unnamed_stages_seen.add(new_stg)
+                    logger.info(
+                        "[%s] Unnamed print stage %s on model %s, entered from %s (%s); "
+                        "state=%s progress=%s%% layer=%s/%s",
+                        self.serial_number,
+                        new_stg,
+                        self.model,
+                        prev_stg,
+                        get_stage_name(prev_stg),
+                        self.state.state,
+                        self.state.progress,
+                        self.state.layer_num,
+                        self.state.total_layers,
+                    )
             self.state.stg_cur = new_stg
             # #1721 end-of-print finish photo trigger.
             # Stage 22 = "Filament unloading" fires at end-of-print AND
