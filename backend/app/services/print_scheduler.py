@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, false, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,6 +55,8 @@ from backend.app.services.printer_manager import (
     supports_drying_while_printing,
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
+from backend.app.utils.color_utils import perceptual_color_distance
+from backend.app.utils.filament_types import canonical_filament_type
 from backend.app.utils.filename import derive_remote_filename
 from backend.app.utils.printer_models import (
     is_gcode_compatible,
@@ -226,23 +228,6 @@ _ACTIVE_PRINT_STATES: frozenset[str] = frozenset({"PREPARE", "SLICING", "RUNNING
 # a lost MQTT publish on a half-broken session (#887/#936) is fixed by the
 # force-reconnect on the very next attempt — while still bounding the loop.
 DISPATCH_MAX_ATTEMPTS = 3
-
-# Filament type equivalence groups — types within the same group are
-# interchangeable on the printer side (Bambu Lab firmware treats them as compatible).
-_FILAMENT_TYPE_GROUPS: list[list[str]] = [
-    ["PA-CF", "PA12-CF", "PAHT-CF"],
-]
-_FILAMENT_EQUIV_MAP: dict[str, str] = {}
-for _group in _FILAMENT_TYPE_GROUPS:
-    _canonical = _group[0].upper()
-    for _t in _group:
-        _FILAMENT_EQUIV_MAP[_t.upper()] = _canonical
-
-
-def _canonical_filament_type(ftype: str) -> str:
-    """Return canonical type for equivalence matching."""
-    upper = ftype.upper()
-    return _FILAMENT_EQUIV_MAP.get(upper, upper)
 
 
 @dataclass(slots=True)
@@ -2141,18 +2126,16 @@ class PrintScheduler:
                 tray_type = tray.get("tray_type")
                 if tray_type:
                     color_norm = (tray.get("tray_color", "") or "").replace("#", "").lower()[:6]
-                    loaded.append(
-                        (_canonical_filament_type(tray_type), color_norm, tray.get("tray_info_idx", "") or "")
-                    )
+                    loaded.append((canonical_filament_type(tray_type), color_norm, tray.get("tray_info_idx", "") or ""))
         for vt in status.raw_data.get("vt_tray") or []:
             vt_type = vt.get("tray_type")
             if vt_type:
                 color_norm = (vt.get("tray_color", "") or "").replace("#", "").lower()[:6]
-                loaded.append((_canonical_filament_type(vt_type), color_norm, vt.get("tray_info_idx", "") or ""))
+                loaded.append((canonical_filament_type(vt_type), color_norm, vt.get("tray_info_idx", "") or ""))
 
         missing = []
         for o in force_overrides:
-            o_type = _canonical_filament_type(o.get("type") or "")
+            o_type = canonical_filament_type(o.get("type") or "")
             o_color = (o.get("color") or "").replace("#", "").lower()[:6]
             o_idx = o.get("tray_info_idx") or ""
             satisfied = any(
@@ -2189,18 +2172,18 @@ class PrintScheduler:
                 for tray in ams_unit.get("tray", []):
                     tray_type = tray.get("tray_type")
                     if tray_type:
-                        loaded_types.add(_canonical_filament_type(tray_type))
+                        loaded_types.add(canonical_filament_type(tray_type))
 
         # Check external spool(s) (virtual tray, stored in raw_data["vt_tray"] as list)
         for vt in status.raw_data.get("vt_tray") or []:
             vt_type = vt.get("tray_type")
             if vt_type:
-                loaded_types.add(_canonical_filament_type(vt_type))
+                loaded_types.add(canonical_filament_type(vt_type))
 
         # Find which required types are missing (using canonical type for equivalence)
         missing = []
         for req_type in required_types:
-            if _canonical_filament_type(req_type) not in loaded_types:
+            if canonical_filament_type(req_type) not in loaded_types:
                 missing.append(req_type)
 
         return missing
@@ -2740,6 +2723,26 @@ class PrintScheduler:
             return ""
         return color.replace("#", "").lower()[:6]
 
+    def _color_distance(self, color1: str | None, color2: str | None) -> float | None:
+        """Perceptual (CIEDE2000) distance, or None when either colour is unusable.
+
+        Ranks the candidates ``_colors_are_similar`` admits (#2804). Eligibility
+        stays the per-channel box that shipped — this only decides which of
+        several eligible spools is closest, so nothing becomes usable or
+        unusable because of it.
+
+        It ranks by how far apart the colours *look*, not how far apart their
+        numbers are. RGB distance overweights blue badly enough to invert the
+        answer: against a required ``#1E4821`` green, a purple ``#38202F`` is
+        the nearer of two eligible spools by RGB and the further by a factor of
+        four once measured perceptually.
+
+        Alpha is ignored, deliberately: the alpha a slicer writes for a
+        transparent filament is not a colour the user chose, and counting it
+        would stop a transparent filament matching itself.
+        """
+        return perceptual_color_distance(color1, color2)
+
     def _colors_are_similar(self, color1: str | None, color2: str | None, threshold: int = 40) -> bool:
         """Check if two colors are visually similar within a threshold."""
         hex1 = self._normalize_color_for_compare(color1)
@@ -2943,6 +2946,7 @@ class PrintScheduler:
             idx_match = None
             exact_match = None
             similar_match = None
+            similar_distance = float("inf")
             type_only_match = None
 
             # Get available trays (not already used)
@@ -3018,8 +3022,10 @@ class PrintScheduler:
                             if not exact_match:
                                 exact_match = f
                         elif self._colors_are_similar(f_color, req_color):
-                            if not similar_match:
+                            distance = self._color_distance(f_color, req_color)
+                            if distance is not None and distance < similar_distance:
                                 similar_match = f
+                                similar_distance = distance
                         elif not type_only_match:
                             type_only_match = f
 
@@ -3027,7 +3033,7 @@ class PrintScheduler:
             if not idx_match and not exact_match and not similar_match and not type_only_match:
                 for f in available:
                     f_type = (f.get("type") or "").upper()
-                    if _canonical_filament_type(f_type) != _canonical_filament_type(req_type):
+                    if canonical_filament_type(f_type) != canonical_filament_type(req_type):
                         continue
 
                     # Type matches - check color
@@ -3036,8 +3042,15 @@ class PrintScheduler:
                         if not exact_match:
                             exact_match = f
                     elif self._colors_are_similar(f_color, req_color):
-                        if not similar_match:
+                        # Nearest wins, not first-in-tray-order. `available` is
+                        # already in the caller's order (slot order, or the
+                        # prefer-lowest sort), and `<` keeps the earliest of
+                        # equally close spools — so that order survives as the
+                        # tie-break (#2804).
+                        distance = self._color_distance(f_color, req_color)
+                        if distance is not None and distance < similar_distance:
                             similar_match = f
+                            similar_distance = distance
                     elif not type_only_match:
                         type_only_match = f
 
@@ -3047,35 +3060,38 @@ class PrintScheduler:
                 comparisons.append({"slot_id": req.get("slot_id", 0), "global_tray_id": match["global_tray_id"]})
             else:
                 comparisons.append({"slot_id": req.get("slot_id", 0), "global_tray_id": -1})
-            if prefer_lowest:
-                # Pair with the "available (sorted)" log above so the reporter
-                # bundle shows BOTH what the matcher saw AND which match bucket
-                # won — fast triage when "Prefer Lowest Filament" picks the
-                # wrong slot (#1766).
-                if match:
-                    bucket = (
-                        "idx"
-                        if idx_match is not None
-                        else "exact_color"
-                        if exact_match is not None
-                        else "similar_color"
-                        if similar_match is not None
-                        else "type_only"
-                    )
-                    logger.info(
-                        "[prefer-lowest] picked gtid=%s via %s for req slot=%s",
-                        match["global_tray_id"],
-                        bucket,
-                        req.get("slot_id"),
-                    )
-                else:
-                    logger.info(
-                        "[prefer-lowest] NO MATCH for req slot=%s (type=%r color=%r tii=%r)",
-                        req.get("slot_id"),
-                        req_type,
-                        req_color,
-                        req_tray_info_idx,
-                    )
+            # Which bucket won, always — not only under Prefer Lowest (#2804).
+            # "Why did it pick that spool" is the question every wrong-filament
+            # report starts with, and a `similar_color` win is now a ranked
+            # choice among several eligible spools rather than whichever tray
+            # came first, so it is worth being able to see after the fact.
+            # Pairs with the "available (sorted)" log above when Prefer Lowest
+            # is on (#1766).
+            if match:
+                bucket = (
+                    "idx"
+                    if idx_match is not None
+                    else "exact_color"
+                    if exact_match is not None
+                    else "similar_color"
+                    if similar_match is not None
+                    else "type_only"
+                )
+                logger.info(
+                    "[ams-match] picked gtid=%s via %s for req slot=%s%s",
+                    match["global_tray_id"],
+                    bucket,
+                    req.get("slot_id"),
+                    f" (deltaE {similar_distance:.2f})" if bucket == "similar_color" else "",
+                )
+            else:
+                logger.info(
+                    "[ams-match] NO MATCH for req slot=%s (type=%r color=%r tii=%r)",
+                    req.get("slot_id"),
+                    req_type,
+                    req_color,
+                    req_tray_info_idx,
+                )
 
         # Build mapping array
         if not comparisons:
@@ -4751,6 +4767,141 @@ class PrintScheduler:
 
         return prev_item.status in ("completed", "cancelled")
 
+    async def _repoint_siblings_at_archive(
+        self,
+        db: AsyncSession,
+        *,
+        consumed_library_file_id: int,
+        archive_id: int,
+        dispatched_item_id: int,
+    ) -> int:
+        """Move the other queue items off a library row that is about to be deleted (#2819).
+
+        ``cleanup_library_after_dispatch`` consumes the library row: the printer-card
+        upload-and-print flow uploads a transient file, prints it, and deletes it.
+        Queue creation happily puts that flag on every copy of a ``quantity > 1``
+        request, and ``_clone_queue_item`` copies ``library_file_id`` onto batch
+        clones, so the first dispatch could pull the file out from under rows that
+        had not run yet. What those rows did next depended on the database, and
+        neither answer was right: SQLite ships with ``PRAGMA foreign_keys`` off, so
+        the ``ON DELETE CASCADE`` on ``print_queue.library_file_id`` never fired and
+        they were left pointing at a row that no longer existed, failing with
+        "Library file not found" whenever someone started them -- or sitting
+        ``pending`` forever under ``manual_start``. PostgreSQL enforces the same
+        constraint, so there the rows were deleted outright and the queued copies
+        simply vanished, with no error and no history.
+
+        The archive holds its own copy of the 3MF, so the remaining copies can print
+        from it instead. Two things happen here, and both must happen *before* the
+        delete -- afterwards there is nothing left to repair on PostgreSQL:
+
+        * every row still naming the file has ``library_file_id`` cleared, which is
+          what takes it out of the cascade's reach. That covers rows this cannot
+          re-point as well -- a copy already printing from its own archive, and the
+          finished ones, which are not spare parts but the record a batch order
+          counts its progress from.
+        * the rows that still need something to print are pointed at the archive.
+
+        Returns how many items were re-pointed.
+        """
+        variant_item_ids = (
+            (
+                await db.execute(
+                    select(PrintQueueVariant.queue_item_id).where(
+                        PrintQueueVariant.library_file_id == consumed_library_file_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # Candidate rows naming the consumed file have to go rather than be
+        # cleared: `library_file_id` is NOT NULL there, so there is no way to keep
+        # one out of the cascade. This is what PostgreSQL already does, and
+        # _candidates_for skips such a variant on SQLite anyway, so no selection
+        # outcome changes -- the two backends simply stop disagreeing about
+        # whether the row is still there.
+        #
+        # It also has to happen before the re-point below: a cross-model item
+        # (#671) picks a variant every pass and folds it onto the row, and
+        # _resolve_variant clears archive_id as it does so, which would undo the
+        # re-point on the very next lap.
+        await db.execute(delete(PrintQueueVariant).where(PrintQueueVariant.library_file_id == consumed_library_file_id))
+
+        # An item left with other candidates still has somewhere to go, and those
+        # carry their own target model -- pointing it at this archive would print a
+        # file the matcher never chose. It is excluded from the re-point and simply
+        # re-resolves against what is left.
+        surviving_variant_item_ids = set(
+            (
+                await db.execute(
+                    select(PrintQueueVariant.queue_item_id).where(
+                        PrintQueueVariant.queue_item_id.in_(variant_item_ids) if variant_item_ids else false()
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        repoint_ids = set(
+            (
+                await db.execute(
+                    select(PrintQueueItem.id)
+                    .where(PrintQueueItem.id != dispatched_item_id)
+                    .where(PrintQueueItem.archive_id.is_(None))
+                    # "skipped" belongs here with the two live states: it is not
+                    # terminal. Clearing a printer's previous-success gate puts
+                    # every item skipped by it back to "pending"
+                    # (resume_after_failure), and one restored onto a deleted
+                    # file is the same orphan by a slower route. "failed",
+                    # "cancelled", "aborted" and "completed" never return.
+                    .where(PrintQueueItem.status.in_(("pending", "printing", "skipped")))
+                    .where(
+                        PrintQueueItem.id.notin_(surviving_variant_item_ids) if surviving_variant_item_ids else true()
+                    )
+                    .where(
+                        or_(
+                            PrintQueueItem.library_file_id == consumed_library_file_id,
+                            PrintQueueItem.id.in_(variant_item_ids) if variant_item_ids else false(),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if repoint_ids:
+            await db.execute(
+                update(PrintQueueItem)
+                .where(PrintQueueItem.id.in_(repoint_ids))
+                .values(
+                    archive_id=archive_id,
+                    library_file_id=None,
+                    # The file this flag named is already consumed. Leaving it set
+                    # would arm every re-pointed copy to delete whatever library
+                    # row it is next given.
+                    cleanup_library_after_dispatch=False,
+                )
+            )
+            logger.info(
+                "Queue items %s: re-pointed at archive %s -- library file %s was consumed by item %s",
+                sorted(repoint_ids),
+                archive_id,
+                consumed_library_file_id,
+                dispatched_item_id,
+            )
+
+        # Everything else that still names the file: taken out of the cascade's
+        # reach without touching what it prints. The file is gone either way; what
+        # this preserves is the row.
+        await db.execute(
+            update(PrintQueueItem)
+            .where(PrintQueueItem.id != dispatched_item_id)
+            .where(PrintQueueItem.library_file_id == consumed_library_file_id)
+            .values(library_file_id=None)
+        )
+        return len(repoint_ids)
+
     async def _power_off_if_needed(self, db: AsyncSession, item: PrintQueueItem):
         """Schedule power-off if the queue item enabled auto_off_after.
 
@@ -5085,11 +5236,28 @@ class PrintScheduler:
             result = await db.execute(LibraryFile.active().where(LibraryFile.id == item.library_file_id))
             library_file = result.scalar_one_or_none()
             if not library_file:
+                # "Not found" covers two different situations and only one of
+                # them is recoverable, so say which. A trashed file is still
+                # there and restoring it makes a re-queued job work; a file that
+                # is really gone needs a different one. Neither is knowable from
+                # the queue, which is the whole complaint about this message.
+                trashed = (
+                    await db.execute(select(LibraryFile.filename).where(LibraryFile.id == item.library_file_id))
+                ).scalar_one_or_none()
                 item.status = "failed"
-                item.error_message = "Library file not found"
+                item.error_message = (
+                    f"'{trashed}' is in the library trash — restore it and queue the print again"
+                    if trashed
+                    else "Library file not found — it was deleted after this job was queued"
+                )
                 item.completed_at = datetime.now(timezone.utc)
                 await db.commit()
-                logger.error("Queue item %s: Library file %s not found", item.id, item.library_file_id)
+                logger.error(
+                    "Queue item %s: library file %s is %s",
+                    item.id,
+                    item.library_file_id,
+                    "in the trash" if trashed else "gone",
+                )
                 await self._power_off_if_needed(db, item)
                 return
             # Library files store absolute paths
@@ -5099,6 +5267,11 @@ class PrintScheduler:
 
             # Create archive from library file so usage tracking has access to the 3MF
             queue_item_id = item.id
+            # Held separately: a cleanup dispatch clears item.library_file_id
+            # below, and the log line at the end of this block reported that
+            # cleared field -- so every consumed print logged "from library
+            # file None", which is the one case worth being able to trace.
+            source_library_file_id = item.library_file_id
             try:
                 from backend.app.services.archive import ArchiveService
 
@@ -5118,6 +5291,7 @@ class PrintScheduler:
                     if budget_reservation is not None:
                         budget_reservation.print_archive_id = archive.id
                     if item.cleanup_library_after_dispatch and not library_file.is_external:
+                        consumed_library_file_id = library_file.id
                         item.library_file_id = None
                         cleanup_disk_paths.append(file_path)
                         if library_file.thumbnail_path:
@@ -5125,6 +5299,14 @@ class PrintScheduler:
                             if not thumb_path.is_absolute():
                                 thumb_path = settings.base_dir / library_file.thumbnail_path
                             cleanup_disk_paths.append(thumb_path)
+                        # Before the delete, not after: on PostgreSQL the FK
+                        # cascade would already have taken these rows (#2819).
+                        await self._repoint_siblings_at_archive(
+                            db,
+                            consumed_library_file_id=consumed_library_file_id,
+                            archive_id=archive.id,
+                            dispatched_item_id=item.id,
+                        )
                         await db.delete(library_file)
                         file_path = settings.base_dir / archive.file_path
                         filename = archive.filename
@@ -5138,7 +5320,7 @@ class PrintScheduler:
                         "Queue item %s: Created archive %s from library file %s",
                         item.id,
                         archive.id,
-                        item.library_file_id,
+                        source_library_file_id,
                     )
             except Exception as e:
                 logger.warning(
@@ -5579,7 +5761,7 @@ class PrintScheduler:
         # thrown away on every dispatch.
         nozzle_slot_extruders = None
         if not item.nozzle_mapping and file_path is not None and is_nozzle_rack_model(printer.model):
-            slot_extruders = extract_slot_extruders_from_3mf(file_path)
+            slot_extruders = extract_slot_extruders_from_3mf(file_path, plate_id=item.plate_id or 1)
             if slot_extruders:
                 nozzle_slot_extruders = json.dumps(slot_extruders)
 
