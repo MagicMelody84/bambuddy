@@ -9,6 +9,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { LocationsModal } from './LocationsModal';
 import { useToast } from '../contexts/ToastContext';
 import { loadLocationSensorDefaults } from '../utils/locationSensorDefaults';
+import { HA_SENSOR_BINARY_LABELS } from '../utils/haSensorDisplay';
 
 interface Props {
   sensor?: LocationHASensor | null;
@@ -48,23 +49,6 @@ function findSiblingEntities(
   });
   return siblings;
 }
-
-const ALERT_LABEL_KEYS: Record<string, { on: string; off: string }> = {
-  door: { on: 'open', off: 'closed' },
-  garage_door: { on: 'open', off: 'closed' },
-  window: { on: 'open', off: 'closed' },
-  opening: { on: 'open', off: 'closed' },
-  lock: { on: 'unlocked', off: 'locked' },
-  motion: { on: 'detected', off: 'clear' },
-  occupancy: { on: 'detected', off: 'clear' },
-  presence: { on: 'detected', off: 'clear' },
-  smoke: { on: 'detected', off: 'clear' },
-  gas: { on: 'detected', off: 'clear' },
-  moisture: { on: 'wet', off: 'dry' },
-  problem: { on: 'problem', off: 'ok' },
-  safety: { on: 'problem', off: 'ok' },
-  running: { on: 'running', off: 'stopped' },
-};
 
 export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   const { t } = useTranslation();
@@ -307,7 +291,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     saveMutation.mutate();
   };
 
-  const alertLabels = ALERT_LABEL_KEYS[deviceClass ?? ''];
+  const alertLabels = HA_SENSOR_BINARY_LABELS[deviceClass ?? ''];
   const stateLabel = (which: 'on' | 'off') => {
     const key = alertLabels?.[which] ?? which;
     return t(`haSensors.states.${key}`, { defaultValue: key });

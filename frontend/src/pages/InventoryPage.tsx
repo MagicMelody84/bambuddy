@@ -8,14 +8,13 @@ import {
   TrendingDown, Layers, Printer, AlertTriangle, X, Clock, LayoutGrid, TableProperties, Columns,
   ArrowUp, ArrowDown, ArrowUpDown, Group, ChevronDown, Check, RefreshCw, TrendingUp, Lock, Copy, Eraser, MapPin,
   Upload, Download,
-  Activity, Battery, DoorClosed, DoorOpen, Droplets, Gauge, LockOpen, Thermometer, Wind,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { ForecastPanel } from '../components/ForecastPanel';
 import { api, spoolbuddyApi, ApiError } from '../api/client';
 import type { InventorySpool, SpoolCatalogEntry, LocationHASensorReading } from '../api/client';
 import { Button } from '../components/Button';
 import { FilamentSwatch } from '../components/FilamentSwatch';
+import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
 import { buildFilamentBackground } from '../components/filamentSwatchHelpers';
 import {SpoolFormModal, type SpoolFormMode} from '../components/SpoolFormModal';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -2673,58 +2672,12 @@ function SpoolCard({
   );
 }
 
-const LOCATION_SENSOR_BINARY_LABELS: Record<string, { on: string; off: string }> = {
-  door: { on: 'open', off: 'closed' },
-  garage_door: { on: 'open', off: 'closed' },
-  window: { on: 'open', off: 'closed' },
-  opening: { on: 'open', off: 'closed' },
-  lock: { on: 'unlocked', off: 'locked' },
-  motion: { on: 'detected', off: 'clear' },
-  occupancy: { on: 'detected', off: 'clear' },
-  presence: { on: 'detected', off: 'clear' },
-  smoke: { on: 'detected', off: 'clear' },
-  gas: { on: 'detected', off: 'clear' },
-  moisture: { on: 'wet', off: 'dry' },
-  problem: { on: 'problem', off: 'ok' },
-  safety: { on: 'problem', off: 'ok' },
-  running: { on: 'running', off: 'stopped' },
-};
-
 const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
   temperature: 0,
   humidity: 1,
   moisture: 1,
   battery: 2,
 };
-
-const LOCATION_SENSOR_ICONS: Record<string, LucideIcon> = {
-  door: DoorOpen,
-  garage_door: DoorOpen,
-  window: DoorOpen,
-  opening: DoorOpen,
-  lock: LockOpen,
-  temperature: Thermometer,
-  humidity: Droplets,
-  moisture: Droplets,
-  battery: Battery,
-  motion: Activity,
-  occupancy: Activity,
-  presence: Activity,
-  smoke: AlertTriangle,
-  gas: AlertTriangle,
-  problem: AlertTriangle,
-  safety: AlertTriangle,
-  running: Wind,
-};
-
-function iconForLocationSensor(reading: LocationHASensorReading): LucideIcon {
-  const deviceClass = reading.device_class ?? '';
-  if (reading.state === 'off') {
-    if (LOCATION_SENSOR_ICONS[deviceClass] === DoorOpen) return DoorClosed;
-    if (LOCATION_SENSOR_ICONS[deviceClass] === LockOpen) return Lock;
-  }
-  return LOCATION_SENSOR_ICONS[deviceClass] ?? (reading.kind === 'numeric' ? Gauge : Activity);
-}
 
 function locationSensorIconGapClass(deviceClass: string | null): string {
   if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'mr-[2px]';
@@ -2742,7 +2695,7 @@ function describeLocationSensor(
     const formatted = reading.value.toFixed(2);
     return reading.unit ? `${formatted} ${reading.unit}` : formatted;
   }
-  const labels = LOCATION_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
+  const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
   const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
   return t(`haSensors.states.${key}`, { defaultValue: key });
 }
@@ -2811,7 +2764,7 @@ function SpoolLocationFooter({
       <span className="text-bambu-gray/40">|</span>
       <div className="flex items-center gap-3">
         {otherReadings.map((reading, index) => {
-          const Icon = iconForLocationSensor(reading);
+          const Icon = iconForHASensor(reading);
           const firstIconOffsetClass = index === 0 ? 'ml-[-3.6px]' : '';
           return (
             <span key={reading.id} title={reading.name} className="flex items-center gap-[3px]">
@@ -2825,7 +2778,7 @@ function SpoolLocationFooter({
       </div>
       {batteryReading &&
         (() => {
-          const Icon = iconForLocationSensor(batteryReading);
+          const Icon = iconForHASensor(batteryReading);
           return (
             <span key={batteryReading.id} title={batteryReading.name} className="flex items-center gap-[3px] ml-auto">
               <Icon className={`w-3 h-3 ${locationSensorIconGapClass(batteryReading.device_class)}`} />
