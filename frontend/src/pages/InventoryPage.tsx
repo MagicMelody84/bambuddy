@@ -1148,13 +1148,30 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     return map;
   }, [catalogEntries]);
 
+  // Not polled — it only changes via explicit create/edit/delete, all of
+  // which already invalidate this key, and it also seeds the SpoolCard
+  // footers below (same query key, so they share this fetch instead of each
+  // issuing their own).
+  const { data: locationHaSensorsList } = useQuery({
+    queryKey: ['locationHaSensors'],
+    queryFn: () => api.getLocationHASensors(),
+  });
+
+  const locationIdsWithSensors = useMemo(
+    () => new Set((locationHaSensorsList ?? []).map((s) => s.location_id)),
+    [locationHaSensorsList]
+  );
+
   const usedLocationIds = useMemo(() => {
     const ids = new Set<number>();
     for (const s of spools || []) {
-      if (s.location_id) ids.add(s.location_id);
+      // Skip locations with no bound sensor at all — polling them would only
+      // ever come back empty, and most installs have far more storage
+      // locations than ones actually wired up to Home Assistant.
+      if (s.location_id && locationIdsWithSensors.has(s.location_id)) ids.add(s.location_id);
     }
     return Array.from(ids);
-  }, [spools]);
+  }, [spools, locationIdsWithSensors]);
 
   const locationReadingsQueries = useQueries({
     queries: usedLocationIds.map((locationId) => ({
@@ -2758,10 +2775,21 @@ function SpoolLocationFooter({
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const pollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
 
+  // Same query key as the list fetch in InventoryPage's body, so this is a
+  // cache read (no extra request) whenever that has already run — which it
+  // has, since card view and this footer only render after spools/locations
+  // are loaded.
+  const { data: sensorsList } = useQuery({
+    queryKey: ['locationHaSensors'],
+    queryFn: () => api.getLocationHASensors(),
+  });
+  const hasSensor = (sensorsList ?? []).some((s) => s.location_id === locationId);
+
   const { data: readings } = useQuery({
     queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
     queryFn: () => api.getLocationHASensorReadings(locationId),
     refetchInterval: pollIntervalMs,
+    enabled: hasSensor,
   });
 
   if (!readings?.length) return null;
