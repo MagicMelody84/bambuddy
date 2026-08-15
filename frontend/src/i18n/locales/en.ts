@@ -5834,7 +5834,7 @@ export default {
       resetConfirm: {
         title: 'Reset all existing location sensors?',
         message:
-          'This overwrites the alert thresholds, notifications, and card visibility of every existing storage-location temperature, humidity, and battery sensor with the values configured above — printer sensors are not affected. This cannot be undone. Depending on how many sensors you have, this may take a moment.',
+          'This overwrites the alert thresholds, notifications, and card visibility of every existing storage-location temperature, humidity, and battery sensor with the values configured above, and restores each sensor\'s name to its Home Assistant friendly name — printer sensors are not affected. This cannot be undone. Depending on how many sensors you have, this may take a moment.',
       },
       resetDone: 'Applied to {{count}} location sensors',
       resetFailed: 'Failed to reset location sensors',
