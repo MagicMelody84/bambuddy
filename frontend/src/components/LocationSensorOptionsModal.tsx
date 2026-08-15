@@ -267,29 +267,6 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
             />
           </div>
 
-          <div className="pt-4 mt-4 border-t border-bambu-dark-tertiary">
-            <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-3">
-              {t('locationHaSensors.options.generalSettings')}
-            </p>
-          </div>
-
-          <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
-            <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
-              {t('locationHaSensors.options.pollInterval')}
-            </label>
-            <input
-              id="location-sensor-poll-interval"
-              type="number"
-              min={MIN_POLL_INTERVAL}
-              step="1"
-              value={pollInterval}
-              onChange={(e) => setPollInterval(Number(e.target.value))}
-              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
-              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
-            />
-            <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
-          </div>
-
           <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -351,6 +328,32 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Everything above is local display preference (localStorage); the
+              poll interval below is the one field here that actually lives on
+              the server, hence its own heading. */}
+          <div className="pt-4 mt-4 border-t border-bambu-dark-tertiary">
+            <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-3">
+              {t('locationHaSensors.options.generalSettings')}
+            </p>
+          </div>
+
+          <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
+            <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
+              {t('locationHaSensors.options.pollInterval')}
+            </label>
+            <input
+              id="location-sensor-poll-interval"
+              type="number"
+              min={MIN_POLL_INTERVAL}
+              step="1"
+              value={pollInterval}
+              onChange={(e) => setPollInterval(Number(e.target.value))}
+              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
+            />
+            <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
           </div>
 
           <div className="flex items-center justify-between gap-2 pt-2">
