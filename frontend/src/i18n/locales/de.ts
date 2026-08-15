@@ -5718,7 +5718,7 @@ export default {
   locationHaSensors: {
     sectionTitle: 'Home-Assistant-Sensoren (Lagerorte)',
     sectionDescription:
-      'Binden Sie Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an Ihre Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
+      'Binde Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an deine Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
     add: 'Sensor hinzufügen',
     addTitle: 'Home-Assistant-Sensor hinzufügen',
     editTitle: 'Home-Assistant-Sensor bearbeiten',
