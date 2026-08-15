@@ -1,3 +1,5 @@
+"""Schemas for Home Assistant entities bound to a storage location (#2824)."""
+
 from datetime import datetime
 from typing import Literal
 
@@ -29,6 +31,9 @@ class LocationHASensorBase(BaseModel):
         if self.kind != expected:
             raise ValueError(f"kind must be '{expected}' for a {domain} entity")
 
+        # Alert fields are per-kind: a threshold on a battery sensor and an
+        # on/off alert on a temperature reading are both configuration the
+        # poller would silently ignore, so reject them at the edge instead.
         if self.kind == "binary" and (self.alert_above is not None or self.alert_below is not None):
             raise ValueError("alert_above/alert_below only apply to numeric sensors")
         if self.kind == "numeric" and self.alert_state is not None:
@@ -36,6 +41,8 @@ class LocationHASensorBase(BaseModel):
         if self.alert_above is not None and self.alert_below is not None and self.alert_below >= self.alert_above:
             raise ValueError("alert_below must be lower than alert_above")
 
+        # A notification with nothing to trigger on would never fire — that
+        # reads as a broken feature, not as a no-op.
         if self.notify_on_alert and not self._has_alert_condition():
             raise ValueError("notify_on_alert requires an alert condition")
         return self
@@ -49,6 +56,9 @@ class LocationHASensorCreate(LocationHASensorBase):
 
 
 class LocationHASensorUpdate(BaseModel):
+    """Partial update. Validated against the merged row in the route, because
+    the per-kind rules above need fields this payload may not carry."""
+
     name: str | None = Field(default=None, min_length=1, max_length=100)
     entity_id: str | None = Field(default=None, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
     kind: Literal["binary", "numeric"] | None = None
@@ -75,14 +85,18 @@ class LocationHASensorResponse(LocationHASensorBase):
 
 
 class LocationHASensorReading(BaseModel):
+    """One sensor's live state, as the filament card and inventory table render it."""
+
     id: int
     name: str
     entity_id: str
     kind: str
     device_class: str | None = None
     unit: str | None = None
+    # Raw HA state: "on"/"off" for binary, the numeric string for sensors.
+    # None when the entity is unavailable or has not been polled yet.
     state: str | None = None
-    value: float | None = None
+    value: float | None = None  # numeric sensors only, parsed from state
     alerting: bool = False
     reachable: bool = True
     alert_state: str | None = None

@@ -7,6 +7,14 @@ from backend.app.core.database import Base
 
 
 class LocationHASensor(Base):
+    """A read-only Home Assistant entity bound to a storage location (#2824).
+
+    Mirrors ``PrinterHASensor`` for dryboxes, bins and shelves instead of
+    printers — same read-only binding, alert rule and notification, but no
+    print-blocking: holding a print queue doesn't mean anything for a
+    storage bin.
+    """
+
     __tablename__ = "location_ha_sensors"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -15,11 +23,21 @@ class LocationHASensor(Base):
     name: Mapped[str] = mapped_column(String(100))
     entity_id: Mapped[str] = mapped_column(String(255))
 
+    # "binary" for binary_sensor.*, "numeric" for sensor.*. Decides how the
+    # state is rendered and which alert fields apply.
     kind: Mapped[str] = mapped_column(String(16), default="binary")
 
+    # HA's own device_class, snapshotted when the entity is bound. Drives the
+    # category a sensor is treated as (temperature/humidity/battery) and the
+    # unit shown next to the value.
     device_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Numeric only: "°C", "%", ... shown next to the value.
     unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # What counts as needing attention. One notion, two consumers: the
+    # colorized value on the card/table and the notification. Binary sensors
+    # use alert_state ("on"/"off"/None), numeric ones the thresholds. All
+    # None means "just show the value".
     alert_state: Mapped[str | None] = mapped_column(String(8), nullable=True)
     alert_above: Mapped[float | None] = mapped_column(Float, nullable=True)
     alert_below: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -29,6 +47,8 @@ class LocationHASensor(Base):
     show_on_card: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
+    # Last poll result. Persisted so a restart doesn't blank the card until the
+    # first poll lands, and so notifications only fire on a real transition.
     last_state: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_changed: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
