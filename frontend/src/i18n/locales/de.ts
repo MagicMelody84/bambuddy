@@ -5783,7 +5783,7 @@ export default {
       resetConfirm: {
         title: 'Alle bestehenden Lagerort-Sensoren zurücksetzen?',
         message:
-          'Dies überschreibt die Alarmschwellen, Benachrichtigungen und Kartensichtbarkeit aller bestehenden Temperatur-, Luftfeuchtigkeits- und Batteriesensoren von Lagerorten mit den oben festgelegten Werten – Drucker-Sensoren sind davon nicht betroffen. Dies kann nicht rückgängig gemacht werden. Je nach Anzahl der Sensoren kann dies einen Moment dauern.',
+          'Dies überschreibt die Alarmschwellen, Benachrichtigungen und Kartensichtbarkeit aller bestehenden Temperatur-, Luftfeuchtigkeits- und Batteriesensoren von Lagerorten mit den oben festgelegten Werten und setzt den Namen jedes Sensors auf seinen Home-Assistant-Anzeigenamen zurück – Drucker-Sensoren sind davon nicht betroffen. Dies kann nicht rückgängig gemacht werden. Je nach Anzahl der Sensoren kann dies einen Moment dauern.',
       },
       resetDone: 'Auf {{count}} Lagerort-Sensoren angewendet',
       resetFailed: 'Zurücksetzen der Lagerort-Sensoren fehlgeschlagen',
