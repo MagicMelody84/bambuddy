@@ -5767,6 +5767,7 @@ export default {
         pink: 'Rosa',
       },
       saved: 'Opciones guardadas',
+      saveFailed: 'No se pudieron guardar las opciones',
       reset: 'Restablecer',
       resetConfirm: {
         title: '¿Restablecer todos los sensores de ubicación existentes?',

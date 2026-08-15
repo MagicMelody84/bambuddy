@@ -5489,6 +5489,7 @@ export default {
         pink: '분홍',
       },
       saved: '옵션이 저장되었습니다',
+      saveFailed: '옵션 저장에 실패했습니다',
       reset: '초기화',
       resetConfirm: {
         title: '기존 위치 센서를 모두 재설정하시겠습니까?',

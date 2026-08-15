@@ -5747,6 +5747,7 @@ export default {
         pink: '粉色',
       },
       saved: '選項已儲存',
+      saveFailed: '儲存選項失敗',
       reset: '重設',
       resetConfirm: {
         title: '要重設所有現有位置感測器嗎？',

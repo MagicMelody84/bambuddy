@@ -166,15 +166,33 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
     saveLocationSensorAlertOptimalColor(optimalColor);
-    await api.updateSettings({ location_sensor_poll_interval: Math.max(MIN_POLL_INTERVAL, pollInterval) });
-    queryClient.invalidateQueries({ queryKey: ['settings'] });
+
+    // Only touch the server when the interval actually changed. It is the
+    // one field here that needs SETTINGS_UPDATE (admin); the rest are
+    // localStorage-only, so a non-admin who leaves the interval alone can
+    // still save their colour/threshold preferences without ever hitting a
+    // permission check.
+    const clampedInterval = Math.max(MIN_POLL_INTERVAL, pollInterval);
+    if (appSettings && clampedInterval !== appSettings.location_sensor_poll_interval) {
+      await api.updateSettings({ location_sensor_poll_interval: clampedInterval });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const saveMutation = useMutation({
+    mutationFn: persistDefaults,
+    onSuccess: () => {
+      showToast(t('locationHaSensors.options.saved'), 'success');
+      onClose();
+    },
+    onError: (err: Error) => {
+      showToast(err.message || t('locationHaSensors.options.saveFailed'), 'error');
+    },
+  });
+
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    await persistDefaults();
-    showToast(t('locationHaSensors.options.saved'), 'success');
-    onClose();
+    saveMutation.mutate();
   };
 
   const resetMutation = useMutation({
@@ -344,7 +362,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
               <Button type="button" variant="secondary" onClick={onClose}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={saveMutation.isPending}>
                 <Save className="w-4 h-4" />
                 {t('common.save')}
               </Button>

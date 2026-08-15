@@ -5760,6 +5760,7 @@ export default {
         pink: 'ピンク',
       },
       saved: 'オプションを保存しました',
+      saveFailed: 'オプションの保存に失敗しました',
       reset: 'リセット',
       resetConfirm: {
         title: '既存のすべての保管場所センサーをリセットしますか？',
