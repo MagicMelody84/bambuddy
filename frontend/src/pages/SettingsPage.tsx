@@ -530,10 +530,12 @@ export function SettingsPage() {
     queryFn: () => api.getHASensors(),
   });
 
+  // Not polled — this is the sensor list (for the badge count and the
+  // section below), not live readings. It only changes via create/edit/
+  // delete, which already invalidate this key.
   const { data: locationHaSensors } = useQuery({
     queryKey: ['locationHaSensors'],
     queryFn: () => api.getLocationHASensors(),
-    refetchInterval: (settings?.location_sensor_poll_interval || 120) * 1000,
   });
 
   const { data: haSensorLocations } = useQuery({
