@@ -110,6 +110,7 @@ from backend.app.services.notification_service import notification_service
 from backend.app.services.obico_detection import obico_detection_service
 from backend.app.services.print_cost_estimate import plate_scoped_run_estimate as _plate_scoped_run_estimate
 from backend.app.services.print_scheduler import scheduler as print_scheduler
+from backend.app.services.print_storage import external_storage_present, print_file_reachable_over_ftp
 from backend.app.services.printer_manager import (
     init_printer_connections,
     parse_plate_id,
@@ -3448,10 +3449,25 @@ async def on_print_start(printer_id: int, data: dict):
                 downloaded_filename = try_filename
                 break
 
+        # Does this printer keep the sliced file somewhere FTPS can reach? On
+        # H2-series and P2S the answer is routinely no — the file stays on
+        # internal eMMC and port 990 only ever serves external storage — and
+        # then the whole sweep below (six filenames x five directories x four
+        # retries, then the directory walk) is ~110 connections that cannot
+        # succeed. Skip it and say why (#2780).
+        storage = print_file_reachable_over_ftp(printer_manager.get_status(printer_id))
+        if not storage.reachable and not downloaded_filename:
+            logger.info(
+                "Skipping the 3MF lookup for printer %s: %s — the print file is not on storage "
+                "Bambuddy can read over FTPS, so no path would find it",
+                printer_id,
+                storage.reason,
+            )
+
         # Get FTP retry settings
         ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
 
-        for try_filename in possible_names if not downloaded_filename else []:
+        for try_filename in possible_names if not downloaded_filename and storage.reachable else []:
             if not try_filename.endswith(".3mf"):
                 continue
 
@@ -3529,7 +3545,12 @@ async def on_print_start(printer_id: int, data: dict):
         # Different printer models use different directory structures. Skipped
         # when the printer's FTPS handshake is failing — the directory walk is
         # five more connections that cannot get further than the download did.
-        if not downloaded_filename and (filename or subtask_name) and not ftps_handshake_blocked(printer.ip_address):
+        if (
+            not downloaded_filename
+            and storage.reachable
+            and (filename or subtask_name)
+            and not ftps_handshake_blocked(printer.ip_address)
+        ):
             search_term = (subtask_name or filename).lower().replace(".gcode", "").replace(".3mf", "")
             logger.info("Direct FTP download failed, searching directories for '%s'", search_term)
             search_dirs = ["/cache", "/model", "/data", "/data/Metadata", "/"]
@@ -3744,7 +3765,15 @@ async def on_print_start(printer_id: int, data: dict):
                     subtask_id=subtask_id,
                     filament_type=mqtt_filament_meta.get("filament_type"),
                     filament_color=mqtt_filament_meta.get("filament_color"),
-                    extra_data={"no_3mf_available": True, "original_subtask": subtask_name, "_print_data": data},
+                    extra_data={
+                        "no_3mf_available": True,
+                        # Why the card is empty, when we know. The banner reads
+                        # this to stop telling H2/P2 owners to switch on a
+                        # setting that is already on and would not help (#2780).
+                        "no_3mf_reason": storage.reason,
+                        "original_subtask": subtask_name,
+                        "_print_data": data,
+                    },
                 )
 
                 db.add(fallback_archive)
@@ -3989,6 +4018,19 @@ async def _list_timelapse_videos(printer) -> tuple[list[dict], str | None]:
     from backend.app.services.bambu_ftp import list_files_async
 
     logger = logging.getLogger(__name__)
+
+    # No card in the slot means no /timelapse to walk — four connections that
+    # can only fail, on a path whose failures are swallowed and so would go on
+    # costing time silently forever (#2780).
+    #
+    # ``getattr`` rather than ``printer.id``: every dereference below happens
+    # inside the loop's own try/except, so a caller that passed something
+    # unexpected used to get an empty listing rather than an exception. Keep
+    # that, instead of making this gate the first thing that can raise here.
+    printer_id = getattr(printer, "id", None)
+    if printer_id is not None and not external_storage_present(printer_manager.get_status(printer_id)):
+        logger.debug("[TIMELAPSE] Skipping the scan for printer %s: it reports no external storage", printer_id)
+        return [], None
 
     for timelapse_path in ["/timelapse", "/timelapse/video", "/record", "/recording"]:
         try:
@@ -5190,6 +5232,50 @@ def _subtask_name_from_filename(filename: str) -> str:
     return name
 
 
+# How the printer marks a subtask name it had to cut short. Observed on real
+# hardware at ~100 characters, but the cut-off is not a fixed character count
+# (a name with multibyte characters came back at 98), so match the marker
+# rather than a length.
+_SUBTASK_TRUNCATION_MARKER = "..."
+
+
+def _normalise_subtask_name(name: str) -> str:
+    """Canonical form for comparing a dispatched name against MQTT's echo.
+
+    The printer does not echo the name back verbatim: it substitutes
+    underscores for spaces. ``H2D_Carbon_Filter_(V2)_Body & Solid Lid`` is
+    dispatched and ``H2D_Carbon_Filter_(V2)_Body_&_Solid_Lid`` comes back.
+
+    The 3MF lookup in this module has always known that -- it builds
+    space-to-underscore variants of every candidate filename, and its
+    directory search normalises both sides before comparing. This exists so
+    the completion check reads the same rule from the same place instead of
+    growing its own, which is exactly how it came to disagree (#2829).
+    """
+    return name.strip().replace(" ", "_").casefold()
+
+
+def _subtask_names_match(expected: str, observed: str) -> bool:
+    """Whether two subtask names describe the same print.
+
+    Beyond the space/underscore substitution, the printer truncates long names
+    and marks the cut with ``...``. A truncated echo has to count as a match or
+    every print with a long name strands its queue item the same way.
+    """
+    expected_n = _normalise_subtask_name(expected)
+    observed_n = _normalise_subtask_name(observed)
+    if expected_n == observed_n:
+        return True
+
+    # Either side can be the truncated one: the printer truncates what it
+    # echoes, and an archive whose own filename was recorded from a previous
+    # truncated echo carries the marker too.
+    for full, cut in ((expected_n, observed_n), (observed_n, expected_n)):
+        if cut.endswith(_SUBTASK_TRUNCATION_MARKER) and full.startswith(cut[: -len(_SUBTASK_TRUNCATION_MARKER)]):
+            return True
+    return False
+
+
 async def _completion_belongs_to_queue_item(db, item, data: dict) -> bool:
     """Whether this completion event is plausibly about *item*'s print.
 
@@ -5217,7 +5303,7 @@ async def _completion_belongs_to_queue_item(db, item, data: dict) -> bool:
         return True
 
     expected = _subtask_name_from_filename(archive.filename)
-    if not expected or expected.casefold() == observed.casefold():
+    if not expected or _subtask_names_match(expected, observed):
         return True
 
     logging.getLogger(__name__).warning(
@@ -6243,13 +6329,12 @@ async def on_print_complete(printer_id: int, data: dict):
 
             import uuid
             from datetime import datetime
-            from pathlib import Path
 
-            if archive.file_path:
-                archive_dir = app_settings.base_dir / Path(archive.file_path).parent
-            else:
+            from backend.app.utils.archive_paths import archive_dir as resolve_archive_dir
+
+            if not archive.file_path:
                 logger.warning("[PHOTO-BG] Archive %s has no file_path, using fallback dir", archive_id)
-                archive_dir = app_settings.archive_dir / str(archive.id)
+            archive_dir = resolve_archive_dir(archive)
             photo_filename = None
 
             # Prefer the timelapse last-frame source when a timelapse was
@@ -6569,15 +6654,10 @@ async def on_print_complete(printer_id: int, data: dict):
 
                             # Read finish photo bytes for image attachment (e.g. Pushover)
                             try:
-                                from pathlib import Path
+                                from backend.app.utils.archive_paths import find_archive_photo
 
-                                photo_path = (
-                                    app_settings.base_dir
-                                    / Path(archive.file_path).parent
-                                    / "photos"
-                                    / finish_photo_filename
-                                )
-                                if photo_path.exists():
+                                photo_path = find_archive_photo(archive, finish_photo_filename)
+                                if photo_path is not None:
                                     photo_bytes = await asyncio.to_thread(photo_path.read_bytes)
                                     if len(photo_bytes) <= 2_500_000:
                                         archive_data["image_data"] = photo_bytes
