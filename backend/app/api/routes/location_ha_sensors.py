@@ -26,10 +26,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/location-ha-sensors", tags=["location-ha-sensors"])
 
-_READ = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ)
-_CREATE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE)
-_UPDATE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE)
-_DELETE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE)
+# Reuse the smart-plug permissions, same as ha_sensors.py: both surfaces are
+# "the Home Assistant integration", just scoped to a location instead of a
+# printer. INVENTORY_* would put HA entity bindings behind
+# can_manage_inventory, which defaults to on for API keys (see auth.py) —
+# an inventory-scoped key (e.g. a SpoolBuddy kiosk) would then be able to
+# create, edit and delete HA sensor bindings, a capability the printer
+# sibling deliberately keeps admin-only by leaving SMART_PLUGS_CREATE/
+# UPDATE/DELETE off the API-key allowlist entirely.
+_READ = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_READ)
+_CREATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_CREATE)
+_UPDATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE)
+_DELETE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_DELETE)
 
 
 async def _refresh_quietly(sensor: LocationHASensor, db: AsyncSession) -> None:
