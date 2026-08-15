@@ -5749,6 +5749,7 @@ export default {
         pink: 'Rose',
       },
       saved: 'Options enregistrées',
+      saveFailed: 'Échec de l\'enregistrement des options',
       reset: 'Réinitialiser',
       resetConfirm: {
         title: 'Réinitialiser tous les capteurs d\'emplacement existants ?',

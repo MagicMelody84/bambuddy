@@ -5747,6 +5747,7 @@ export default {
         pink: '粉色',
       },
       saved: '选项已保存',
+      saveFailed: '保存选项失败',
       reset: '重置',
       resetConfirm: {
         title: '要重置所有现有位置传感器吗？',

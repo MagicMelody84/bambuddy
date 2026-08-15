@@ -5723,6 +5723,7 @@ export default {
         pink: 'Pembe',
       },
       saved: 'Seçenekler kaydedildi',
+      saveFailed: 'Seçenekler kaydedilemedi',
       reset: 'Sıfırla',
       resetConfirm: {
         title: 'Mevcut tüm konum sensörleri sıfırlansın mı?',

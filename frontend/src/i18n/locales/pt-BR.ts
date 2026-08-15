@@ -5748,6 +5748,7 @@ export default {
         pink: 'Rosa',
       },
       saved: 'Opções salvas',
+      saveFailed: 'Falha ao salvar as opções',
       reset: 'Redefinir',
       resetConfirm: {
         title: 'Redefinir todos os sensores de local existentes?',

@@ -5809,6 +5809,7 @@ export default {
         pink: 'Pink',
       },
       saved: 'Options saved',
+      saveFailed: 'Failed to save options',
       reset: 'Reset',
       resetConfirm: {
         title: 'Reset all existing location sensors?',

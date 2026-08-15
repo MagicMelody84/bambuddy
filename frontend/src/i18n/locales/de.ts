@@ -5759,6 +5759,7 @@ export default {
         pink: 'Magenta',
       },
       saved: 'Optionen gespeichert',
+      saveFailed: 'Optionen konnten nicht gespeichert werden',
       reset: 'Zurücksetzen',
       resetConfirm: {
         title: 'Alle bestehenden Lagerort-Sensoren zurücksetzen?',

@@ -5748,6 +5748,7 @@ export default {
         pink: 'Rosa',
       },
       saved: 'Opzioni salvate',
+      saveFailed: 'Impossibile salvare le opzioni',
       reset: 'Ripristina',
       resetConfirm: {
         title: 'Reimpostare tutti i sensori di posizione esistenti?',
