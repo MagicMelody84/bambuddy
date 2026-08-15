@@ -146,6 +146,42 @@ describe('LocationHASensorModal', () => {
     expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 1 Temp');
   });
 
+  it('follows the name field to the newly picked entity, as long as it was not typed by hand', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      { entity_id: 'sensor.drybox_2_temp', friendly_name: 'Drybox 2 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '19.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 1 Temp');
+
+    await user.click(screen.getByText('Drybox 2 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 2 Temp');
+  });
+
+  it('does not overwrite a hand-typed name when a different entity is picked', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      { entity_id: 'sensor.drybox_2_temp', friendly_name: 'Drybox 2 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '19.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'My Custom Name');
+
+    await user.click(screen.getByText('Drybox 2 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('My Custom Name');
+  });
+
   it('saves the friendly name, not the raw entity id', async () => {
     getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([

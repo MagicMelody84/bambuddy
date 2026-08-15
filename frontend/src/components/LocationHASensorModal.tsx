@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Gauge, Loader2, Plus, Save, Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -62,6 +62,11 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   const [deviceClass, setDeviceClass] = useState<string | null>(sensor?.device_class ?? null);
   const [unit, setUnit] = useState<string | null>(sensor?.unit ?? null);
   const [name, setName] = useState(sensor?.name ?? '');
+  // Tracks the last name we auto-filled (or the initial saved name), so
+  // switching to a different entity can follow along with the new friendly
+  // name — but only while the field still holds what we put there. A name
+  // the user typed themselves is never overwritten by an entity change.
+  const autoFilledNameRef = useRef(sensor?.name ?? '');
   const [alertState, setAlertState] = useState<'on' | 'off' | ''>(sensor?.alert_state ?? '');
   const [alertAbove, setAlertAbove] = useState(sensor?.alert_above?.toString() ?? '');
   const [alertBelow, setAlertBelow] = useState(sensor?.alert_below?.toString() ?? '');
@@ -133,8 +138,14 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     }
     // Sliced to the column width: Home Assistant friendly names have no length
     // limit, and a long one would come back as a Pydantic error on a field the
-    // user did not type into.
-    if (!name.trim()) setName(entity.friendly_name.slice(0, 100));
+    // user did not type into. Follows the entity picker as long as the name
+    // still matches what we last auto-filled — a name the user typed
+    // themselves is left alone even when they pick a different entity.
+    if (name === autoFilledNameRef.current) {
+      const nextName = entity.friendly_name.slice(0, 100);
+      setName(nextName);
+      autoFilledNameRef.current = nextName;
+    }
 
     if (!isEditing) {
       const category = categoryFor(entity.device_class);
