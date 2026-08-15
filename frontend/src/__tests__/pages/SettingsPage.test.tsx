@@ -1581,7 +1581,7 @@ describe('SettingsPage — location sensor reachability', () => {
     render(<SettingsPage />);
 
     await user.click(await screen.findByText('Sensors'));
-    await screen.findByText('Drybox 1 Temperature');
+    await screen.findByText('sensor.drybox_1_temperature');
 
     expect(await screen.findByText('Unavailable')).toBeInTheDocument();
     expect(screen.queryByText('65 °C')).not.toBeInTheDocument();
@@ -1619,14 +1619,40 @@ describe('SettingsPage — location sensor reachability', () => {
     render(<SettingsPage />);
 
     await user.click(await screen.findByText('Sensors'));
-    await screen.findByText('Drybox 1 Temperature');
+    await screen.findByText('sensor.drybox_1_temperature');
 
     expect(await screen.findByText('24.5 °C')).toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
   });
 
+  it('shows the entity id in the overview row, with the display name as its hover title', async () => {
+    server.use(
+      http.get('/api/v1/location-ha-sensors/', () => HttpResponse.json([locationSensor])),
+      http.get('/api/v1/location-ha-sensors/by-location/7/readings', () => HttpResponse.json([])),
+      http.get('/api/v1/inventory/locations', () =>
+        HttpResponse.json([{ id: 7, name: 'Drybox 1', identifier: null, spool_count: 0, created_at: '', updated_at: '' }])
+      )
+    );
+
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await user.click(await screen.findByText('Sensors'));
+
+    const entityIdText = await screen.findByText('sensor.drybox_1_temperature');
+    expect(entityIdText).toHaveAttribute('title', 'Drybox 1 Temperature');
+    expect(screen.queryByText('Drybox 1 Temperature')).not.toBeInTheDocument();
+  });
+
   it('drops trailing zeros for a whole-number battery reading', async () => {
-    const batterySensor = { ...locationSensor, id: 2, name: 'Drybox 1 Battery', device_class: 'battery', unit: '%' };
+    const batterySensor = {
+      ...locationSensor,
+      id: 2,
+      name: 'Drybox 1 Battery',
+      entity_id: 'sensor.drybox_1_battery',
+      device_class: 'battery',
+      unit: '%',
+    };
 
     server.use(
       http.get('/api/v1/location-ha-sensors/', () => HttpResponse.json([batterySensor])),
@@ -1635,7 +1661,7 @@ describe('SettingsPage — location sensor reachability', () => {
           {
             id: 2,
             name: 'Drybox 1 Battery',
-            entity_id: 'sensor.drybox_1_temperature',
+            entity_id: 'sensor.drybox_1_battery',
             kind: 'numeric',
             device_class: 'battery',
             unit: '%',
@@ -1667,7 +1693,14 @@ describe('SettingsPage — location sensor reachability', () => {
   it('refreshes the sensor list even when a bulk delete partially fails', async () => {
     let sensors = [
       { ...locationSensor, id: 1, name: 'Drybox 1 Temperature' },
-      { ...locationSensor, id: 2, name: 'Drybox 1 Humidity', device_class: 'humidity', unit: '%' },
+      {
+        ...locationSensor,
+        id: 2,
+        name: 'Drybox 1 Humidity',
+        entity_id: 'sensor.drybox_1_humidity',
+        device_class: 'humidity',
+        unit: '%',
+      },
     ];
 
     server.use(
@@ -1690,16 +1723,16 @@ describe('SettingsPage — location sensor reachability', () => {
     render(<SettingsPage />);
 
     await user.click(await screen.findByText('Sensors'));
-    await screen.findByText('Drybox 1 Temperature');
-    await screen.findByText('Drybox 1 Humidity');
+    await screen.findByText('sensor.drybox_1_temperature');
+    await screen.findByText('sensor.drybox_1_humidity');
 
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     await user.click(await screen.findByRole('button', { name: 'Confirm' }));
 
     // The sensor that actually got deleted on the backend must not linger on
     // screen just because the batch as a whole reported an error.
-    await waitFor(() => expect(screen.queryByText('Drybox 1 Temperature')).not.toBeInTheDocument());
-    expect(screen.getByText('Drybox 1 Humidity')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('sensor.drybox_1_temperature')).not.toBeInTheDocument());
+    expect(screen.getByText('sensor.drybox_1_humidity')).toBeInTheDocument();
   });
 });
 

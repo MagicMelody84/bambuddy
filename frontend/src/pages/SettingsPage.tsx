@@ -4018,7 +4018,9 @@ export function SettingsPage() {
                                 <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
                                 {value && <span className={`${valueColor} shrink-0 w-[52px] text-center`}>{value}</span>}
                                 {value && <span className="shrink-0 mr-1.5">-</span>}
-                                <span className="truncate mr-1.5">{sensor.name}</span>
+                                <span className="truncate mr-1.5" title={sensor.name}>
+                                  {sensor.entity_id}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => {

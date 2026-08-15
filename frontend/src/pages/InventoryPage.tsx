@@ -309,7 +309,10 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
     return (
-      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+      <span
+        title={reading.name}
+        className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}
+      >
         {describeLocationSensor(reading, t)}
       </span>
     );
@@ -320,7 +323,10 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
     return (
-      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+      <span
+        title={reading.name}
+        className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}
+      >
         {describeLocationSensor(reading, t)}
       </span>
     );
@@ -331,7 +337,10 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
     return (
-      <span className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}>
+      <span
+        title={reading.name}
+        className={`text-sm ${locationSensorCellColor(reading, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor)}`}
+      >
         {describeLocationSensor(reading, t)}
       </span>
     );
