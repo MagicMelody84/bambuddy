@@ -198,13 +198,16 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   const resetMutation = useMutation({
     mutationFn: async () => {
       await persistDefaults();
-      const sensors = await api.getLocationHASensors();
+      const [sensors, entities] = await Promise.all([api.getLocationHASensors(), api.getBindableLocationHAEntities()]);
+      const friendlyNameByEntityId = new Map(entities.map((entity) => [entity.entity_id, entity.friendly_name]));
       const targets = sensors.filter((sensor) => categoryFor(sensor.device_class) !== null);
       await Promise.all(
         targets.map((sensor) => {
           const category = categoryFor(sensor.device_class)!;
           const categoryDefaults = defaults[category];
+          const friendlyName = friendlyNameByEntityId.get(sensor.entity_id);
           return api.updateLocationHASensor(sensor.id, {
+            ...(friendlyName ? { name: friendlyName.slice(0, 100) } : {}),
             alert_above:
               category !== 'battery' && categoryDefaults.alertAbove !== '' ? Number(categoryDefaults.alertAbove) : null,
             alert_below: categoryDefaults.alertBelow !== '' ? Number(categoryDefaults.alertBelow) : null,

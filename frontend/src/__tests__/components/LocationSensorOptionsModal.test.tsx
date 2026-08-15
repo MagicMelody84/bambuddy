@@ -13,6 +13,7 @@ vi.mock('../../api/client', async () => {
     api: {
       ...actual.api,
       getLocationHASensors: vi.fn(),
+      getBindableLocationHAEntities: vi.fn(),
       updateLocationHASensor: vi.fn(),
       getSettings: vi.fn(),
       updateSettings: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('../../api/client', async () => {
 });
 
 const getLocationSensors = vi.mocked(api.getLocationHASensors);
+const getEntities = vi.mocked(api.getBindableLocationHAEntities);
 const updateSensor = vi.mocked(api.updateLocationHASensor);
 const getSettings = vi.mocked(api.getSettings);
 const updateSettings = vi.mocked(api.updateSettings);
@@ -30,9 +32,11 @@ describe('LocationSensorOptionsModal', () => {
     vi.mocked(window.localStorage.getItem).mockReset();
     vi.mocked(window.localStorage.setItem).mockReset();
     getLocationSensors.mockReset();
+    getEntities.mockReset();
     updateSensor.mockReset();
     getSettings.mockReset();
     updateSettings.mockReset();
+    getEntities.mockResolvedValue([]);
     getSettings.mockResolvedValue({ location_sensor_poll_interval: 120 } as never);
     updateSettings.mockResolvedValue({} as never);
   });
@@ -185,10 +189,14 @@ describe('LocationSensorOptionsModal', () => {
 
   it('asks for confirmation before overwriting existing sensors, then applies the configured values', async () => {
     getLocationSensors.mockResolvedValue([
-      { id: 1, device_class: 'temperature' } as never,
-      { id: 2, device_class: 'humidity' } as never,
-      { id: 3, device_class: 'battery' } as never,
-      { id: 4, device_class: 'door' } as never,
+      { id: 1, device_class: 'temperature', entity_id: 'sensor.drybox_1_temperature' } as never,
+      { id: 2, device_class: 'humidity', entity_id: 'sensor.drybox_1_humidity' } as never,
+      { id: 3, device_class: 'battery', entity_id: 'sensor.drybox_1_battery' } as never,
+      { id: 4, device_class: 'door', entity_id: 'binary_sensor.drybox_1_door' } as never,
+    ]);
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature' } as never,
+      { entity_id: 'sensor.drybox_1_battery', friendly_name: 'Drybox 1 Battery' } as never,
     ]);
     updateSensor.mockResolvedValue({} as never);
     const onClose = vi.fn();
@@ -207,8 +215,11 @@ describe('LocationSensorOptionsModal', () => {
     await user.click(screen.getAllByRole('button', { name: /^reset$/i })[1]);
 
     await waitFor(() => expect(updateSensor).toHaveBeenCalledTimes(3));
-    expect(updateSensor).toHaveBeenCalledWith(1, expect.objectContaining({ alert_above: 35 }));
-    expect(updateSensor).toHaveBeenCalledWith(3, expect.objectContaining({ alert_above: null }));
+    expect(updateSensor).toHaveBeenCalledWith(1, expect.objectContaining({ alert_above: 35, name: 'Drybox 1 Temperature' }));
+    expect(updateSensor).toHaveBeenCalledWith(3, expect.objectContaining({ alert_above: null, name: 'Drybox 1 Battery' }));
+    // Sensor 2's entity isn't in the Home Assistant list (e.g. currently
+    // unreachable) — its name is left untouched rather than cleared.
+    expect(updateSensor).toHaveBeenCalledWith(2, expect.not.objectContaining({ name: expect.anything() }));
     expect(onClose).toHaveBeenCalled();
 
     expect(window.localStorage.setItem).toHaveBeenCalledWith(

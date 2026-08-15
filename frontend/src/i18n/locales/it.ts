@@ -5772,7 +5772,7 @@ export default {
       resetConfirm: {
         title: 'Reimpostare tutti i sensori di posizione esistenti?',
         message:
-          'Questo sovrascrive le soglie di allarme, le notifiche e la visibilità sulla scheda di tutti i sensori di temperatura, umidità e batteria di posizione esistenti con i valori configurati sopra: i sensori della stampante non sono interessati. Questa azione non può essere annullata. A seconda del numero di sensori, questa operazione potrebbe richiedere un momento.',
+          'Questo sovrascrive le soglie di allarme, le notifiche e la visibilità sulla scheda di tutti i sensori di temperatura, umidità e batteria di posizione esistenti con i valori configurati sopra, e ripristina il nome di ciascun sensore al suo nome descrittivo di Home Assistant: i sensori della stampante non sono interessati. Questa azione non può essere annullata. A seconda del numero di sensori, questa operazione potrebbe richiedere un momento.',
       },
       resetDone: 'Applicato a {{count}} sensori di posizione',
       resetFailed: 'Impossibile reimpostare i sensori di posizione',
