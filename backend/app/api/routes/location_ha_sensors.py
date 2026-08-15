@@ -1,3 +1,5 @@
+"""API routes for Home Assistant sensors bound to a storage location (#2824)."""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,13 +26,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/location-ha-sensors", tags=["location-ha-sensors"])
 
-_READ = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ)
-_CREATE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_CREATE)
-_UPDATE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE)
-_DELETE = RequirePermissionIfAuthEnabled(Permission.INVENTORY_DELETE)
+# Reuse the smart-plug permissions, same as ha_sensors.py: both surfaces are
+# "the Home Assistant integration", just scoped to a location instead of a
+# printer. INVENTORY_* would put HA entity bindings behind
+# can_manage_inventory, which defaults to on for API keys (see auth.py) —
+# an inventory-scoped key (e.g. a SpoolBuddy kiosk) would then be able to
+# create, edit and delete HA sensor bindings, a capability the printer
+# sibling deliberately keeps admin-only by leaving SMART_PLUGS_CREATE/
+# UPDATE/DELETE off the API-key allowlist entirely.
+_READ = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_READ)
+_CREATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_CREATE)
+_UPDATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE)
+_DELETE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_DELETE)
 
 
 async def _refresh_quietly(sensor: LocationHASensor, db: AsyncSession) -> None:
+    """Take a first reading without letting it fail the write that preceded it.
+
+    The sensor row is committed before this runs. A failure here costs the
+    card one poll interval of blank state, which is not worth turning a
+    successful save into an error response.
+    """
     try:
         await location_ha_sensor_manager.refresh_one(db, sensor)
     except Exception as e:
@@ -43,6 +59,7 @@ async def list_location_ha_sensors(
     db: AsyncSession = Depends(get_db),
     _: User | None = _READ,
 ):
+    """List configured sensors, grouped by location and in display order."""
     query = select(LocationHASensor)
     if location_id is not None:
         query = query.where(LocationHASensor.location_id == location_id)
@@ -50,12 +67,14 @@ async def list_location_ha_sensors(
     return list(result.scalars().all())
 
 
+# Must precede /{sensor_id} so "entities" is not parsed as an id.
 @router.get("/entities", response_model=list[HADisplayEntity])
 async def list_bindable_entities(
     search: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: User | None = _READ,
 ):
+    """List the Home Assistant entities that can be bound to a storage location."""
     from backend.app.api.routes.settings import get_homeassistant_settings
 
     ha_settings = await get_homeassistant_settings(db)
@@ -76,6 +95,13 @@ async def get_location_sensor_readings(
     db: AsyncSession = Depends(get_db),
     _: User | None = _READ,
 ):
+    """Live state of a location's card-visible sensors.
+
+    Served from the poller's cache, so a page full of filament cards costs
+    Home Assistant nothing. A sensor the poller has not reached yet falls
+    back to its last persisted state, marked unreachable, rather than
+    vanishing from the card on every restart.
+    """
     conditions = [LocationHASensor.location_id == location_id]
     if show_on_card:
         conditions.append(LocationHASensor.show_on_card.is_(True))
@@ -114,6 +140,7 @@ async def create_location_ha_sensor(
     db: AsyncSession = Depends(get_db),
     _: User | None = _CREATE,
 ):
+    """Bind a Home Assistant entity to a storage location."""
     location = await db.get(Location, data.location_id)
     if not location:
         raise HTTPException(404, "Location not found")
@@ -133,6 +160,10 @@ async def create_location_ha_sensor(
     await db.refresh(sensor)
     logger.info("Bound HA entity %s to location %s as '%s'", sensor.entity_id, sensor.location_id, sensor.name)
 
+    # Read it once now so the card shows a state immediately instead of after
+    # the next poll tick. Best-effort: the row is already committed, so
+    # letting a Home Assistant hiccup 500 the request would report a failure
+    # for work that succeeded — and the retry would come back "already bound".
     await _refresh_quietly(sensor, db)
     return sensor
 
@@ -162,6 +193,9 @@ async def update_location_ha_sensor(
 
     updates = data.model_dump(exclude_unset=True)
 
+    # Re-run the create-time rules against the merged row. A PATCH that only
+    # sets show_on_card has no entity_id or alert_state in its payload, so the
+    # schema alone cannot tell whether the result is coherent.
     merged = {field: getattr(sensor, field) for field in LocationHASensorCreate.model_fields}
     merged.update(updates)
     try:
@@ -169,6 +203,8 @@ async def update_location_ha_sensor(
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
 
+    # Same uniqueness rule as create: repointing a sensor at an entity the
+    # location already has would leave two rows fighting over one reading.
     new_entity = updates.get("entity_id")
     if new_entity and new_entity != sensor.entity_id:
         clash = await db.execute(
@@ -186,6 +222,7 @@ async def update_location_ha_sensor(
     await db.commit()
     await db.refresh(sensor)
 
+    # The entity or its alert rule may have changed under the cached reading.
     await _refresh_quietly(sensor, db)
     return sensor
 

@@ -20,7 +20,15 @@ MIN_POLL_INTERVAL = 60
 class LocationHASensorManager:
     def __init__(self):
         self._task: asyncio.Task | None = None
+        # sensor id -> last reading. Sensors absent from this map have not been
+        # polled yet; callers must not read that as "not alerting" without also
+        # checking, which is why get_reading returns None rather than a default.
         self._readings: dict[int, SensorReading] = {}
+        # sensor id -> alerting, from the last reading we could actually take.
+        # Kept apart from _readings because a dropout must not read as the
+        # alert clearing: on -> unavailable -> on is one continuous alert, and
+        # notifying off _readings alone would ping the user on every reconnect
+        # of a flaky sensor. Absent means "never had a reachable reading".
         self._last_alerting: dict[int, bool] = {}
 
     def start(self):
@@ -38,10 +46,16 @@ class LocationHASensorManager:
         return self._readings.get(sensor_id)
 
     def forget(self, sensor_id: int):
+        """Drop a deleted sensor's cached reading so its id cannot be reused
+        by a later row and answer with the old sensor's state."""
         self._readings.pop(sensor_id, None)
         self._last_alerting.pop(sensor_id, None)
 
     async def _poll_loop(self):
+        # Poll first, sleep after — the interval is configurable and can be
+        # minutes long, and a restart should not leave every location's
+        # reading blank on the card for a full interval before the first one
+        # lands.
         while True:
             try:
                 await self.poll_once()
@@ -55,6 +69,11 @@ class LocationHASensorManager:
                 break
 
     async def _get_poll_interval(self) -> int:
+        """User-configurable poll cadence, clamped to a sane floor.
+
+        Falls back to the default on a missing row or a corrupted value
+        rather than raising — a bad setting must not take the poller down.
+        """
         from backend.app.core.database import async_session
 
         async with async_session() as db:
@@ -68,12 +87,17 @@ class LocationHASensorManager:
             return POLL_INTERVAL
 
     async def poll_once(self):
+        """One pass over every configured sensor."""
         from backend.app.core.database import async_session
 
         async with async_session() as db:
             result = await db.execute(select(LocationHASensor))
             sensors = list(result.scalars().all())
 
+            # Drop readings for rows that no longer exist. The delete route
+            # calls forget(), but a location deleted with sensors attached
+            # takes them out by cascade, and a restored backup can renumber
+            # them — either way a stale id must not answer for a later sensor.
             live = {s.id for s in sensors}
             for stale in set(self._readings) - live:
                 self.forget(stale)
@@ -90,6 +114,14 @@ class LocationHASensorManager:
             await self._apply(db, sensors, states)
 
     async def refresh_one(self, db: AsyncSession, sensor: LocationHASensor):
+        """Read a single sensor now, on the caller's session.
+
+        Used after a create or an edit so the card shows a state straight away
+        instead of blank until the next tick. Deliberately not a full
+        ``poll_once``: a request handler must not wait on every configured
+        entity, and must not fire another user's notification as a side effect
+        of this one saving a form.
+        """
         self.forget(sensor.id)
         if not await self._configure(db):
             self._readings[sensor.id] = SensorReading(None, None, False, False)
@@ -122,6 +154,7 @@ class LocationHASensorManager:
         return True
 
     async def _apply(self, db: AsyncSession, sensors: list[LocationHASensor], states: dict[str, dict | None]):
+        """Fold poll results into the cache, the DB and any notifications."""
         from backend.app.services.notification_service import notification_service
 
         now = utcnow_naive()
@@ -139,6 +172,11 @@ class LocationHASensorManager:
                     sensor.last_state = reading.state
                     sensor.last_changed = now
 
+            # Notify on the edge into alerting only. `was_alerting is None` is
+            # a cold cache (first poll after a restart) — a drybox that was
+            # already too humid then has not just become too humid, and
+            # re-announcing it on every restart would train users to ignore
+            # the alert.
             if sensor.notify_on_alert and reading.reachable and reading.alerting and was_alerting is False:
                 alerts.append((sensor, reading))
 
@@ -148,6 +186,8 @@ class LocationHASensorManager:
         await db.commit()
 
         for sensor, reading in alerts:
+            # db.get, not sensor.location: touching the lazy relationship from
+            # an async session raises MissingGreenlet.
             location = await db.get(Location, sensor.location_id)
             try:
                 await notification_service.on_location_ha_sensor_alert(

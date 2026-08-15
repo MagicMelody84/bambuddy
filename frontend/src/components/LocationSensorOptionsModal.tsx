@@ -166,15 +166,33 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
     saveLocationSensorAlertOptimalColor(optimalColor);
-    await api.updateSettings({ location_sensor_poll_interval: Math.max(MIN_POLL_INTERVAL, pollInterval) });
-    queryClient.invalidateQueries({ queryKey: ['settings'] });
+
+    // Only touch the server when the interval actually changed. It is the
+    // one field here that needs SETTINGS_UPDATE (admin); the rest are
+    // localStorage-only, so a non-admin who leaves the interval alone can
+    // still save their colour/threshold preferences without ever hitting a
+    // permission check.
+    const clampedInterval = Math.max(MIN_POLL_INTERVAL, pollInterval);
+    if (appSettings && clampedInterval !== appSettings.location_sensor_poll_interval) {
+      await api.updateSettings({ location_sensor_poll_interval: clampedInterval });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const saveMutation = useMutation({
+    mutationFn: persistDefaults,
+    onSuccess: () => {
+      showToast(t('locationHaSensors.options.saved'), 'success');
+      onClose();
+    },
+    onError: (err: Error) => {
+      showToast(err.message || t('locationHaSensors.options.saveFailed'), 'error');
+    },
+  });
+
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    await persistDefaults();
-    showToast(t('locationHaSensors.options.saved'), 'success');
-    onClose();
+    saveMutation.mutate();
   };
 
   const resetMutation = useMutation({
@@ -249,29 +267,6 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
             />
           </div>
 
-          <div className="pt-4 mt-4 border-t border-bambu-dark-tertiary">
-            <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-3">
-              {t('locationHaSensors.options.generalSettings')}
-            </p>
-          </div>
-
-          <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
-            <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
-              {t('locationHaSensors.options.pollInterval')}
-            </label>
-            <input
-              id="location-sensor-poll-interval"
-              type="number"
-              min={MIN_POLL_INTERVAL}
-              step="1"
-              value={pollInterval}
-              onChange={(e) => setPollInterval(Number(e.target.value))}
-              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
-              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
-            />
-            <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
-          </div>
-
           <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -335,6 +330,32 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
             </div>
           </div>
 
+          {/* Everything above is local display preference (localStorage); the
+              poll interval below is the one field here that actually lives on
+              the server, hence its own heading. */}
+          <div className="pt-4 mt-4 border-t border-bambu-dark-tertiary">
+            <p className="text-xs font-medium text-bambu-gray uppercase tracking-wider mb-3">
+              {t('locationHaSensors.options.generalSettings')}
+            </p>
+          </div>
+
+          <div className="p-3 border border-bambu-dark-tertiary rounded-lg space-y-2">
+            <label className="block text-sm text-white" htmlFor="location-sensor-poll-interval">
+              {t('locationHaSensors.options.pollInterval')}
+            </label>
+            <input
+              id="location-sensor-poll-interval"
+              type="number"
+              min={MIN_POLL_INTERVAL}
+              step="1"
+              value={pollInterval}
+              onChange={(e) => setPollInterval(Number(e.target.value))}
+              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
+            />
+            <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
+          </div>
+
           <div className="flex items-center justify-between gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowResetConfirm(true)}>
               <RotateCcw className="w-4 h-4" />
@@ -344,7 +365,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
               <Button type="button" variant="secondary" onClick={onClose}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={saveMutation.isPending}>
                 <Save className="w-4 h-4" />
                 {t('common.save')}
               </Button>

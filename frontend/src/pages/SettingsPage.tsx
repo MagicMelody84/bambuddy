@@ -1,5 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, Battery, FileText, Edit2, Pencil, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Briefcase, Workflow, UploadCloud, MonitorPlay } from 'lucide-react';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Plus, Plug, AlertTriangle, RotateCcw, Bell, Download, RefreshCw, ExternalLink, Globe, Droplets, Thermometer, FileText, Edit2, Pencil, Send, CheckCircle, XCircle, History, Trash2, Zap, TrendingUp, Calendar, DollarSign, Power, PowerOff, Key, Copy, Database, X, Shield, Printer, Cylinder, Wifi, Home, Video, Users, Lock, Unlock, ChevronDown, Save, Mail, Flame, Layers, ListOrdered, Code, Search, Scale, Settings as SettingsIcon, ScanEye, Cog, QrCode, Heart, Briefcase, Workflow, UploadCloud, MonitorPlay } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -12,14 +12,16 @@ import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPre
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
 import {
-  LOCATION_SENSOR_ALERT_COLOR_CLASSES,
   loadLocationSensorAlertAboveColor,
   loadLocationSensorAlertBelowColor,
   loadLocationSensorAlertOptimalColor,
   loadLocationSensorColorizeValues,
+  locationSensorReadingAlertStatus,
+  locationSensorValueColorClass,
 } from '../utils/locationSensorDefaults';
+import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
-import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
+import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, LocationHASensorReading, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
 import { SlicerPipelinesPanel } from '../components/SlicerPipelinesPanel';
 import { CameraTokensSection } from './CameraTokensPage';
@@ -59,7 +61,7 @@ import { defaultNavItems, getDefaultView, setDefaultView } from '../components/L
 import { availableLanguages } from '../i18n';
 import { useToast } from '../contexts/ToastContext';
 import { useTheme, type ThemeStyle, type DarkBackground, type LightBackground, type ThemeAccent } from '../contexts/ThemeContext';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Gauge, Palette } from 'lucide-react';
 import { registerSettingsSearch, getSettingsSearchEntries } from '../lib/settingsSearch';
 import type { UsersSubTab } from '../lib/settingsSearch';
@@ -186,50 +188,23 @@ const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
   battery: 2,
 };
 
-const LOCATION_SENSOR_BINARY_LABELS: Record<string, { on: string; off: string }> = {
-  door: { on: 'open', off: 'closed' },
-  garage_door: { on: 'open', off: 'closed' },
-  window: { on: 'open', off: 'closed' },
-  opening: { on: 'open', off: 'closed' },
-  lock: { on: 'unlocked', off: 'locked' },
-  motion: { on: 'detected', off: 'clear' },
-  occupancy: { on: 'detected', off: 'clear' },
-  presence: { on: 'detected', off: 'clear' },
-  smoke: { on: 'detected', off: 'clear' },
-  gas: { on: 'detected', off: 'clear' },
-  moisture: { on: 'wet', off: 'dry' },
-  problem: { on: 'problem', off: 'ok' },
-  safety: { on: 'problem', off: 'ok' },
-  running: { on: 'running', off: 'stopped' },
-};
-
+// Reads the live readings endpoint (reachable-aware) rather than the sensor
+// row's last_state, so a sensor Home Assistant has stopped reporting shows
+// "Unavailable" instead of silently keeping its last value on screen forever.
 function describeLocationSensorValue(
-  sensor: LocationHASensor,
+  reading: LocationHASensorReading | undefined,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string | null {
-  if (sensor.last_state === null) return null;
-  if (sensor.kind === 'numeric') {
-    const value = Number(sensor.last_state);
-    const formatted = Number.isNaN(value) ? sensor.last_state : value.toFixed(2);
-    return sensor.unit ? `${formatted} ${sensor.unit}` : formatted;
+  if (!reading) return null;
+  if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
+  if (reading.kind === 'numeric') {
+    if (reading.value === null) return reading.state;
+    const formatted = reading.value.toFixed(2);
+    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
   }
-  const labels = LOCATION_SENSOR_BINARY_LABELS[sensor.device_class ?? ''];
-  const key = labels ? labels[sensor.last_state === 'on' ? 'on' : 'off'] : sensor.last_state;
+  const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
+  const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
   return t(`haSensors.states.${key}`, { defaultValue: key });
-}
-
-function locationSensorAlertStatus(sensor: LocationHASensor): 'above' | 'below' | 'ok' | null {
-  if (sensor.last_state === null) return null;
-  if (sensor.kind === 'numeric') {
-    if (sensor.alert_above === null && sensor.alert_below === null) return null;
-    const value = Number(sensor.last_state);
-    if (Number.isNaN(value)) return null;
-    if (sensor.alert_above !== null && value > sensor.alert_above) return 'above';
-    if (sensor.alert_below !== null && value < sensor.alert_below) return 'below';
-    return 'ok';
-  }
-  if (sensor.alert_state === null) return null;
-  return sensor.last_state.toLowerCase() === sensor.alert_state ? 'above' : 'ok';
 }
 
 export function SettingsPage() {
@@ -530,10 +505,12 @@ export function SettingsPage() {
     queryFn: () => api.getHASensors(),
   });
 
+  // Not polled — this is the sensor list (for the badge count and the
+  // section below), not live readings. It only changes via create/edit/
+  // delete, which already invalidate this key.
   const { data: locationHaSensors } = useQuery({
     queryKey: ['locationHaSensors'],
     queryFn: () => api.getLocationHASensors(),
-    refetchInterval: (settings?.location_sensor_poll_interval || 120) * 1000,
   });
 
   const { data: haSensorLocations } = useQuery({
@@ -542,6 +519,32 @@ export function SettingsPage() {
     enabled: activeTab === 'sensors',
   });
 
+  const locationSensorLocationIds = useMemo(
+    () => Array.from(new Set((locationHaSensors ?? []).map((s) => s.location_id))),
+    [locationHaSensors]
+  );
+
+  // Live readings (reachable-aware), fetched per location the same way
+  // InventoryPage's table view does — false to get every bound sensor here,
+  // not just the ones marked to show on the filament card. Only runs while
+  // this tab is actually open.
+  const locationSensorReadingsQueries = useQueries({
+    queries: locationSensorLocationIds.map((locationId) => ({
+      queryKey: ['locationHaSensorReadings', locationId, 'all'],
+      queryFn: () => api.getLocationHASensorReadings(locationId, false),
+      enabled: activeTab === 'sensors',
+      refetchInterval: activeTab === 'sensors' ? (settings?.location_sensor_poll_interval || 120) * 1000 : false,
+    })),
+  });
+
+  const locationSensorReadingsById = useMemo(() => {
+    const map = new Map<number, LocationHASensorReading>();
+    for (const query of locationSensorReadingsQueries) {
+      for (const reading of query.data ?? []) map.set(reading.id, reading);
+    }
+    return map;
+  }, [locationSensorReadingsQueries]);
+
   const deleteLocationSensorsMutation = useMutation({
     mutationFn: async (sensorIds: number[]) => {
       for (const id of sensorIds) {
@@ -549,13 +552,19 @@ export function SettingsPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locationHaSensors'] });
-      queryClient.invalidateQueries({ queryKey: ['locationHaSensorReadings'] });
       showToast(t('locationHaSensors.toast.deleted'), 'success');
-      setDeleteLocationSensorsTarget(null);
     },
     onError: (err: Error) => {
       showToast(err.message, 'error');
+    },
+    // The mutation deletes sequentially; a failure partway through has
+    // already deleted some sensors on the backend, so the cache needs
+    // refreshing whether the mutation as a whole succeeded or failed —
+    // otherwise the ones that did go through stay on screen as if nothing
+    // happened.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['locationHaSensors'] });
+      queryClient.invalidateQueries({ queryKey: ['locationHaSensorReadings'] });
       setDeleteLocationSensorsTarget(null);
     },
   });
@@ -3959,13 +3968,7 @@ export function SettingsPage() {
                 ).map(([locationId, unsortedSensors]) => {
                   const location = haSensorLocations?.find((l) => l.id === locationId);
                   const iconForSensor = (sensor: LocationHASensor) =>
-                    sensor.device_class === 'temperature'
-                      ? Thermometer
-                      : sensor.device_class === 'humidity' || sensor.device_class === 'moisture'
-                        ? Droplets
-                        : sensor.device_class === 'battery'
-                          ? Battery
-                          : Gauge;
+                    iconForHASensor({ device_class: sensor.device_class, state: sensor.last_state, kind: sensor.kind });
                   const sensors = [...unsortedSensors].sort(
                     (a, b) =>
                       (LOCATION_SENSOR_CATEGORY_ORDER[a.device_class ?? ''] ?? 99) -
@@ -3996,22 +3999,25 @@ export function SettingsPage() {
                         <div className="mt-2 space-y-1.5">
                           {sensors.map((sensor) => {
                             const Icon = iconForSensor(sensor);
-                            const value = describeLocationSensorValue(sensor, t);
-                            const alertStatus = colorizeLocationSensorValues ? locationSensorAlertStatus(sensor) : null;
+                            const reading = locationSensorReadingsById.get(sensor.id);
+                            const value = describeLocationSensorValue(reading, t);
+                            const alertStatus =
+                              colorizeLocationSensorValues && reading ? locationSensorReadingAlertStatus(reading) : null;
                             const valueColor =
-                              alertStatus === 'above'
-                                ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorAboveColor]
-                                : alertStatus === 'below'
-                                  ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorBelowColor]
-                                  : alertStatus === 'ok'
-                                    ? LOCATION_SENSOR_ALERT_COLOR_CLASSES[locationSensorOptimalColor]
-                                    : 'text-white';
+                              locationSensorValueColorClass(
+                                alertStatus,
+                                locationSensorAboveColor,
+                                locationSensorBelowColor,
+                                locationSensorOptimalColor
+                              ) || 'text-white';
                             return (
                               <div key={sensor.id} className="flex items-center min-w-0 text-xs text-bambu-gray">
                                 <Icon className="w-3.5 h-3.5 shrink-0 mr-1.5" />
                                 {value && <span className={`${valueColor} shrink-0 w-[52px] text-center`}>{value}</span>}
                                 {value && <span className="shrink-0 mr-1.5">-</span>}
-                                <span className="truncate mr-1.5">{sensor.name}</span>
+                                <span className="truncate mr-1.5" title={sensor.name}>
+                                  {sensor.entity_id}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => {

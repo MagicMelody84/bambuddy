@@ -129,6 +129,33 @@ describe('LocationSensorOptionsModal', () => {
     );
   });
 
+  it('does not call updateSettings when the poll interval is unchanged', async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={onClose} />);
+
+    await screen.findByLabelText(/update interval/i);
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('shows an error and keeps the modal open when saving a changed interval fails', async () => {
+    updateSettings.mockRejectedValue(new Error('Forbidden'));
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={onClose} />);
+
+    const input = await screen.findByLabelText(/update interval/i);
+    await user.clear(input);
+    await user.type(input, '90');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Forbidden')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('clamps a poll interval below the 60s minimum on blur', async () => {
     const user = userEvent.setup();
     render(<LocationSensorOptionsModal onClose={() => {}} />);

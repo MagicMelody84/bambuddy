@@ -286,6 +286,7 @@ async def init_db():
         printer_sensor_history,
         project,
         project_bom,
+        scheduled_drying,
         settings,
         shopping_list,
         slicer_pipeline,

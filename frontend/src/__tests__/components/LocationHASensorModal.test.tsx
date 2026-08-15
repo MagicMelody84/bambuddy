@@ -132,6 +132,90 @@ describe('LocationHASensorModal', () => {
     expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
   });
 
+  it('prefills the name field from the entity\'s friendly name, not the raw entity id', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 1 Temp');
+  });
+
+  it('follows the name field to the newly picked entity, as long as it was not typed by hand', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      { entity_id: 'sensor.drybox_2_temp', friendly_name: 'Drybox 2 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '19.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 1 Temp');
+
+    await user.click(screen.getByText('Drybox 2 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('Drybox 2 Temp');
+  });
+
+  it('does not overwrite a hand-typed name when a different entity is picked', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      { entity_id: 'sensor.drybox_2_temp', friendly_name: 'Drybox 2 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '19.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    const nameInput = screen.getByLabelText(/name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'My Custom Name');
+
+    await user.click(screen.getByText('Drybox 2 Temp'));
+    expect(screen.getByLabelText(/name/i)).toHaveValue('My Custom Name');
+  });
+
+  it('saves the friendly name, not the raw entity id', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+    ] as never);
+    getLocationSensors.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(1));
+    expect(createSensor).toHaveBeenCalledWith(expect.objectContaining({ name: 'Drybox 1 Temp' }));
+  });
+
+  it('requires a name before saving', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+    ] as never);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    await user.clear(screen.getByLabelText(/name/i));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Enter a display name')).toBeInTheDocument();
+    expect(createSensor).not.toHaveBeenCalled();
+  });
+
   it('clears a stale "above" value when saving an existing battery sensor', async () => {
     getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([]);
