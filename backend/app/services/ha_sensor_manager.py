@@ -18,6 +18,7 @@ door contact that stops responding must not strand the queue.
 import asyncio
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -228,7 +229,25 @@ class HASensorManager:
                 logger.warning("Failed to send HA sensor alert for '%s': %s", sensor.name, e)
 
 
-def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
+class _AlertableSensor(Protocol):
+    """Structural type for evaluate()/describe_state().
+
+    PrinterHASensor and LocationHASensor are unrelated SQLAlchemy models —
+    one has no base class in common with the other beyond ``Base`` — but both
+    carry these five fields with the same meaning, and location_ha_sensor_
+    manager.py imports these two functions to reuse the exact same alert
+    logic rather than reimplementing it. A concrete PrinterHASensor
+    annotation here would be a lie for half of the actual callers.
+    """
+
+    kind: str
+    unit: str | None
+    alert_state: str | None
+    alert_above: float | None
+    alert_below: float | None
+
+
+def evaluate(sensor: _AlertableSensor, payload: dict | None) -> SensorReading:
     """Turn one HA state payload into a reading.
 
     Split out from the manager so the alert rules can be tested without a
@@ -261,7 +280,7 @@ def evaluate(sensor: PrinterHASensor, payload: dict | None) -> SensorReading:
     return SensorReading(state=normalized, value=None, alerting=alerting, reachable=True)
 
 
-def describe_state(sensor: PrinterHASensor, reading: SensorReading) -> str:
+def describe_state(sensor: _AlertableSensor, reading: SensorReading) -> str:
     """Human-readable state for a notification body ("open", "31.4 °C")."""
     if sensor.kind == "numeric" and reading.value is not None:
         return f"{reading.value:g} {sensor.unit}".strip() if sensor.unit else f"{reading.value:g}"
