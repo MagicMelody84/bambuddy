@@ -77,6 +77,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   const [kind, setKind] = useState<'binary' | 'numeric'>(sensor?.kind ?? 'numeric');
   const [deviceClass, setDeviceClass] = useState<string | null>(sensor?.device_class ?? null);
   const [unit, setUnit] = useState<string | null>(sensor?.unit ?? null);
+  const [name, setName] = useState(sensor?.name ?? '');
   const [alertState, setAlertState] = useState<'on' | 'off' | ''>(sensor?.alert_state ?? '');
   const [alertAbove, setAlertAbove] = useState(sensor?.alert_above?.toString() ?? '');
   const [alertBelow, setAlertBelow] = useState(sensor?.alert_below?.toString() ?? '');
@@ -146,6 +147,10 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
       setAlertAbove('');
       setAlertBelow('');
     }
+    // Sliced to the column width: Home Assistant friendly names have no length
+    // limit, and a long one would come back as a Pydantic error on a field the
+    // user did not type into.
+    if (!name.trim()) setName(entity.friendly_name.slice(0, 100));
 
     if (!isEditing) {
       const category = categoryFor(entity.device_class);
@@ -167,7 +172,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   };
 
   const buildPrimaryPayload = () => ({
-    name: entityId.slice(0, 100),
+    name: name.trim(),
     entity_id: entityId,
     kind,
     device_class: deviceClass,
@@ -205,7 +210,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
         const categoryDefaults = categoryFor(entity.device_class);
         const d = categoryDefaults ? defaults[categoryDefaults] : null;
         await api.createLocationHASensor({
-          name: entity.entity_id.slice(0, 100),
+          name: entity.friendly_name.slice(0, 100),
           entity_id: entity.entity_id,
           kind: entity.domain === 'binary_sensor' ? 'binary' : 'numeric',
           device_class: entity.device_class,
@@ -268,6 +273,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     e.preventDefault();
     setError(null);
     if (!entityId) return setError(t('haSensors.error.pickEntity'));
+    if (!name.trim()) return setError(t('haSensors.error.nameRequired'));
     if (locationId === '') return setError(t('locationHaSensors.error.locationRequired'));
     if (notifyOnAlert && !hasAlertCondition) {
       return setError(t('haSensors.error.alertRequired'));
@@ -439,6 +445,19 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
                   </button>
                 ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-bambu-gray mb-1" htmlFor="location-ha-sensor-name">
+              {t('haSensors.name')}
+            </label>
+            <input
+              id="location-ha-sensor-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
+            />
           </div>
 
           {entityId && (
