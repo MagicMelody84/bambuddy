@@ -1584,7 +1584,7 @@ describe('SettingsPage — location sensor reachability', () => {
     await screen.findByText('Drybox 1 Temperature');
 
     expect(await screen.findByText('Unavailable')).toBeInTheDocument();
-    expect(screen.queryByText('65.00 °C')).not.toBeInTheDocument();
+    expect(screen.queryByText('65 °C')).not.toBeInTheDocument();
   });
 
   it('shows the live value, not last_state, when the sensor is reachable', async () => {
@@ -1621,8 +1621,47 @@ describe('SettingsPage — location sensor reachability', () => {
     await user.click(await screen.findByText('Sensors'));
     await screen.findByText('Drybox 1 Temperature');
 
-    expect(await screen.findByText('24.50 °C')).toBeInTheDocument();
+    expect(await screen.findByText('24.5 °C')).toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
+  it('drops trailing zeros for a whole-number battery reading', async () => {
+    const batterySensor = { ...locationSensor, id: 2, name: 'Drybox 1 Battery', device_class: 'battery', unit: '%' };
+
+    server.use(
+      http.get('/api/v1/location-ha-sensors/', () => HttpResponse.json([batterySensor])),
+      http.get('/api/v1/location-ha-sensors/by-location/7/readings', () =>
+        HttpResponse.json([
+          {
+            id: 2,
+            name: 'Drybox 1 Battery',
+            entity_id: 'sensor.drybox_1_temperature',
+            kind: 'numeric',
+            device_class: 'battery',
+            unit: '%',
+            state: '87',
+            value: 87,
+            alerting: false,
+            reachable: true,
+            alert_state: null,
+            alert_above: null,
+            alert_below: 10,
+            last_changed: null,
+          },
+        ])
+      ),
+      http.get('/api/v1/inventory/locations', () =>
+        HttpResponse.json([{ id: 7, name: 'Drybox 1', identifier: null, spool_count: 0, created_at: '', updated_at: '' }])
+      )
+    );
+
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await user.click(await screen.findByText('Sensors'));
+
+    expect(await screen.findByText('87 %')).toBeInTheDocument();
+    expect(screen.queryByText('87.00 %')).not.toBeInTheDocument();
   });
 
   it('refreshes the sensor list even when a bulk delete partially fails', async () => {

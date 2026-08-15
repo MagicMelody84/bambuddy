@@ -2692,7 +2692,10 @@ function describeLocationSensor(
   if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
   if (reading.kind === 'numeric') {
     if (reading.value === null) return reading.state;
-    const formatted = reading.value.toFixed(2);
+    // Round to 2 decimals but drop trailing zeros — a battery or humidity
+    // reading is usually a whole percent, and "87.00 %" reads as fussier
+    // precision than the sensor actually has.
+    const formatted = String(Number(reading.value.toFixed(2)));
     return reading.unit ? `${formatted} ${reading.unit}` : formatted;
   }
   const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
