@@ -3744,6 +3744,8 @@ export default {
     noPermissionAddToQueue: "У вас нет прав на добавление в очередь",
     noPermissionSlice: "У вас нет прав на нарезку файлов",
     noPermissionDownload: "У вас нет прав на скачивание файлов",
+    noPermissionPreview: 'У вас нет прав на предварительный просмотр файлов',
+    preview3d: '3D-просмотр',
     noPermissionRenameFile: "У вас нет прав на переименование этого файла",
     noPermissionGenerateThumbnail: "У вас нет прав на создание миниатюр",
     noPermissionDeleteFile: "У вас нет прав на удаление этого файла",
@@ -6688,6 +6690,9 @@ export default {
     thankYou: "Спасибо!",
     submitted: "Отчёт об ошибке отправлен.",
     viewIssue: "Открыть задачу",
+    closeKeepsRecording: 'Вы можете закрыть эту панель, пока воспроизводите проблему: запись продолжается, и при повторном открытии вы вернётесь сюда.',
+    resumeRecording: 'Идёт запись отчёта об ошибке — {{elapsed}}. Нажмите, чтобы завершить.',
+    resumeReport: 'Продолжить отчёт',
     unexpectedError: "Произошла непредвиденная ошибка",
   },
   failureDetection: {

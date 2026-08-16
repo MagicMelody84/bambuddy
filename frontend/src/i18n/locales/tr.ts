@@ -3937,6 +3937,8 @@ export default {
     noPermissionAddToQueue: 'Kuyruğa ekleme izniniz yok',
     noPermissionSlice: 'Dosyaları dilimleme izniniz yok',
     noPermissionDownload: 'Dosyaları indirme izniniz yok',
+    noPermissionPreview: 'Dosyaları önizleme izniniz yok',
+    preview3d: '3B Önizleme',
     noPermissionRenameFile: 'Bu dosyayı yeniden adlandırma izniniz yok',
     noPermissionGenerateThumbnail: 'Küçük resim oluşturma izniniz yok',
     noPermissionDeleteFile: 'Bu dosyayı silme izniniz yok',
@@ -7001,6 +7003,9 @@ export default {
     thankYou: 'Teşekkürler!',
     submitted: 'Hata raporunuz gönderildi.',
     viewIssue: 'Sorunu Görüntüle',
+    closeKeepsRecording: 'Sorunu yeniden oluştururken bu paneli kapatabilirsiniz; kayıt devam eder ve yeniden açtığınızda buraya dönersiniz.',
+    resumeRecording: 'Hata raporu kaydediyor — {{elapsed}}. Tamamlamak için tıklayın.',
+    resumeReport: 'Rapora devam et',
     unexpectedError: 'Beklenmedik bir hata oluştu',
   },
   failureDetection: {
