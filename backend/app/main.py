@@ -119,6 +119,7 @@ from backend.app.services.printer_manager import (
     printer_state_to_dict,
     resolve_plate_id,
 )
+from backend.app.services.slot_kprofile import find_slot_kprofile_for_extruder
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.spool_assignment_notifications import (
     notify_missing_spool_assignments_on_print_start,
@@ -131,6 +132,8 @@ from backend.app.services.spoolman_tracking import (
 )
 from backend.app.services.tasmota import tasmota_service
 from backend.app.utils.ams_drying import is_drying_active, temperature_alarm_suppressed
+from backend.app.utils.fts_routing import extruder_for_inlet, slot_extruder as resolve_slot_extruder
+from backend.app.utils.print_jobs import is_internal_printer_job
 
 
 # =============================================================================
@@ -1484,13 +1487,24 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         if state.raw_data
         else ()
     )
+    # Filament Track Switch: which inlet each AMS is bound to, and whether the
+    # accessory is fitted at all. Neither is in ams_tray_key (it is per-tray) nor
+    # in the AMS change-hash (tray fields only, and widening that would fire
+    # spurious Spoolman syncs), so without them a "Join IN-B" on the printer
+    # screen changed no key at all and the card's inlet badges sat stale until a
+    # reload. Like the filament-backup flag, these only move when someone
+    # reconfigures the machine, so they add no mid-print broadcast traffic.
+    fts_key = (
+        state.fila_switch.installed if state.fila_switch else False,
+        tuple(sorted(state.ams_switch_inlet.items())),
+    )
     status_key = (
         f"{state.connected}:{state.state}:{state.progress}:{state.layer_num}:"
         f"{nozzle_temp}:{bed_temp}:{nozzle_2_temp}:{chamber_temp}:"
         f"{state.stg_cur}:{bed_target}:{nozzle_target}:"
         f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}:"
         f"{state.chamber_light}:{state.active_extruder}:{state.tray_now}:{vt_tray_key}:"
-        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}"
+        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}:{fts_key}"
     )
 
     is_active_print = state.state in _ACTIVE_PRINT_STATES
@@ -1782,6 +1796,83 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
 def _is_bambu_uuid(tray_uuid: str) -> bool:
     """Check if a tray UUID looks like a valid Bambu Lab RFID UUID (non-empty, non-zero)."""
     return bool(tray_uuid) and tray_uuid not in ("", "0" * len(tray_uuid))
+
+
+async def on_fts_inlet_change(printer_id: int, ams_id: int, inlet: str):
+    """Re-point a moved AMS's K-profiles at the nozzle it now feeds.
+
+    K-profiles are per-nozzle and the printer's calibration table is numbered
+    per-nozzle, but a tray holds exactly one ``cali_idx``. Moving an AMS to the
+    switch's other inlet therefore silently invalidates every configured slot in
+    it: the index stays put and now resolves against the other nozzle's table.
+    Measured on the maintainer's H2C — one spool calibrated 0.018 on the left
+    and 0.020 on the right kept the left profile after the move, and a manual
+    RFID re-read only re-asserted the same wrong one.
+
+    Configuring a slot is a deliberate preparation step, so this re-selects
+    rather than re-configures: only the calibration binding moves, and only for
+    slots whose spool already has a stored profile for the new nozzle. A slot
+    Bambuddy knows nothing about is left exactly as the operator left it.
+    """
+    logger = logging.getLogger(__name__)
+
+    target_extruder = extruder_for_inlet(inlet)
+    if target_extruder is None:
+        return
+
+    client = printer_manager.get_client(printer_id)
+    state = printer_manager.get_status(printer_id)
+    if not client or not state or not state.raw_data:
+        return
+
+    nozzle_diameter = "0.4"
+    if state.nozzles and state.nozzles[0].nozzle_diameter:
+        nozzle_diameter = state.nozzles[0].nozzle_diameter
+
+    ams_raw = state.raw_data.get("ams")
+    ams_list = ams_raw.get("ams", []) if isinstance(ams_raw, dict) else ams_raw if isinstance(ams_raw, list) else []
+    unit = next((u for u in ams_list if str(u.get("id")) == str(ams_id)), None)
+    if not unit:
+        return
+
+    try:
+        async with async_session() as db:
+            for tray in unit.get("tray", []):
+                tray_id = int(tray.get("id", -1))
+                if tray_id < 0 or not tray.get("tray_type"):
+                    continue
+                current_idx = tray.get("cali_idx")
+
+                profile = await find_slot_kprofile_for_extruder(
+                    db, printer_id, ams_id, tray_id, target_extruder, nozzle_diameter
+                )
+                if profile is None or profile.cali_idx is None:
+                    continue
+                if current_idx == profile.cali_idx:
+                    continue  # Already on the right one.
+
+                logger.info(
+                    "[Printer %s] AMS %s slot %s moved to inlet %s (nozzle %s): "
+                    "re-selecting K-profile %s (cali_idx %s -> %s, K=%s)",
+                    printer_id,
+                    ams_id,
+                    tray_id,
+                    inlet,
+                    target_extruder,
+                    profile.name,
+                    current_idx,
+                    profile.cali_idx,
+                    profile.k_value,
+                )
+                client.extrusion_cali_sel(
+                    ams_id=ams_id,
+                    tray_id=tray_id,
+                    cali_idx=profile.cali_idx,
+                    filament_id=profile.filament_id or tray.get("tray_info_idx", "") or "",
+                    nozzle_diameter=nozzle_diameter,
+                )
+    except Exception as e:
+        logger.warning("[Printer %s] Could not re-apply K-profiles after inlet move: %s", printer_id, e)
 
 
 async def on_ams_change(printer_id: int, ams_data: list):
@@ -2159,12 +2250,12 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                         nd = state.nozzles[0].nozzle_diameter
                                         if nd:
                                             nozzle_diameter = nd
-                                    slot_extruder: int | None = None
-                                    if state and state.ams_extruder_map:
-                                        if ams_id == 255:
-                                            slot_extruder = 1 - tray_id
-                                        else:
-                                            slot_extruder = state.ams_extruder_map.get(str(ams_id))
+                                    slot_extruder = resolve_slot_extruder(
+                                        ams_id,
+                                        tray_id,
+                                        state.ams_extruder_map if state else None,
+                                        state.ams_switch_inlet if state else None,
+                                    )
                                     # Prefer exact extruder match, fall back to
                                     # extruder-agnostic kp for the same printer +
                                     # nozzle. Avoids hard-skipping when the AMS is
@@ -3045,12 +3136,21 @@ async def on_print_start(printer_id: int, data: dict):
 
         logger.info("[CALLBACK] Print start detected - filename: %s, subtask: %s", filename, subtask_name)
 
-        # Skip calibration prints — internal printer files should not be archived
-        # Bambu calibration gcode lives under /usr/ (e.g. /usr/etc/print/auto_cali_for_user.gcode)
-        if filename and filename.startswith("/usr/"):
-            logger.info("[CALLBACK] Skipping archive — internal printer file detected: %s", filename)
-            if not notification_sent:
-                await _send_print_start_notification(printer_id, data, logger=logger)
+        # Skip the printer's own jobs — a calibration run is not a user's print.
+        # See is_internal_printer_job for what counts and why both fields are
+        # tested; the pressure-advance line reports as a subtask name with no
+        # /usr/ path, which the old prefix-only test here missed entirely.
+        #
+        # No notification either. The event describes the printer calibrating
+        # itself, so "Print started" is as wrong as the archive was, and the
+        # matching completion is suppressed in on_print_complete for the same
+        # reason.
+        if is_internal_printer_job(filename, subtask_name):
+            logger.info(
+                "[CALLBACK] Skipping archive — internal printer job detected: filename=%s, subtask=%s",
+                filename,
+                subtask_name,
+            )
             return
 
         if not filename and not subtask_name:
@@ -5877,6 +5977,23 @@ async def on_print_complete(printer_id: int, data: dict):
     log_timing("Filament usage tracking")
 
     if not archive_id:
+        # The printer's own calibration run has no archive by design, so this
+        # arrives here every time one finishes. Returning before the no-archive
+        # notification is not just noise control: that path attributes an
+        # unmatched completion to any queue item this printer finished in the
+        # last five minutes, which for a calibration that runs alongside a real
+        # print means emailing its owner that their print is done, twice and
+        # early. Everything above this point has already run — the plate-clear
+        # gate, the queue reconciliation, the SD-card cleanup — so only the
+        # notification is skipped.
+        if is_internal_printer_job(filename, subtask_name):
+            logger.info(
+                "[CALLBACK] Internal printer job completed, no notification: filename=%s, subtask=%s",
+                filename,
+                subtask_name,
+            )
+            return
+
         logger.warning("Could not find archive for print complete: filename=%s, subtask=%s", filename, subtask_name)
 
         # Still send print-complete/failed/stopped notifications even without an archive.
@@ -7921,6 +8038,7 @@ async def lifespan(app: FastAPI):
     printer_manager.set_print_running_observed_callback(on_print_running_observed)
     printer_manager.set_finish_photo_moment_callback(on_finish_photo_moment)
     printer_manager.set_ams_change_callback(on_ams_change)
+    printer_manager.set_fts_inlet_change_callback(on_fts_inlet_change)
 
     # Rehydrate persisted awaiting-plate-clear gate (#961) so prompts survive restarts
     await printer_manager.load_awaiting_plate_clear_from_db()
