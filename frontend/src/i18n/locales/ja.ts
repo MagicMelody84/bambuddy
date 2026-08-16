@@ -3942,6 +3942,8 @@ export default {
     noPermissionSlice: 'ファイルをスライスする権限がありません',
     noPermissionAddToQueue: 'キューに追加する権限がありません',
     noPermissionDownload: 'ファイルをダウンロードする権限がありません',
+    noPermissionPreview: 'ファイルをプレビューする権限がありません',
+    preview3d: '3Dプレビュー',
     noPermissionRenameFile: 'このファイル名を変更する権限がありません',
     noPermissionGenerateThumbnail: 'サムネイルを生成する権限がありません',
     noPermissionDeleteFile: 'このファイルを削除する権限がありません',
@@ -7063,6 +7065,9 @@ export default {
     thankYou: 'ありがとうございます！',
     submitted: 'バグレポートが送信されました。',
     viewIssue: 'Issueを表示',
+    closeKeepsRecording: '問題を再現している間、このパネルを閉じても構いません。記録は続行され、再度開くとここに戻ります。',
+    resumeRecording: 'バグレポートを記録中 — {{elapsed}}。クリックして完了します。',
+    resumeReport: 'レポートを再開',
     unexpectedError: '予期しないエラーが発生しました',
   },
   failureDetection: {

@@ -3944,6 +3944,8 @@ export default {
     noPermissionAddToQueue: 'No tiene permiso para añadir a la cola',
     noPermissionSlice: 'No tiene permiso para laminar archivos',
     noPermissionDownload: 'No tiene permiso para descargar archivos',
+    noPermissionPreview: 'No tienes permiso para previsualizar archivos',
+    preview3d: 'Vista previa 3D',
     noPermissionRenameFile: 'No tiene permiso para renombrar este archivo',
     noPermissionGenerateThumbnail: 'No tiene permiso para generar miniaturas',
     noPermissionDeleteFile: 'No tiene permiso para eliminar este archivo',
@@ -7070,6 +7072,9 @@ export default {
     thankYou: '¡Gracias!',
     submitted: 'Su informe de error se ha enviado.',
     viewIssue: 'Ver incidencia',
+    closeKeepsRecording: 'Puedes cerrar este panel mientras reproduces el problema: la grabación sigue en marcha y al volver a abrirlo regresarás aquí.',
+    resumeRecording: 'Informe de error grabando — {{elapsed}}. Haz clic para finalizar.',
+    resumeReport: 'Reanudar informe',
     unexpectedError: 'Se produjo un error inesperado',
   },
   failureDetection: {

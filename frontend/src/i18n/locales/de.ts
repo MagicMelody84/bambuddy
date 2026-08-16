@@ -3942,6 +3942,8 @@ export default {
     noPermissionSlice: 'Sie haben keine Berechtigung, Dateien zu slicen',
     noPermissionAddToQueue: 'Sie haben keine Berechtigung, zur Warteschlange hinzuzufügen',
     noPermissionDownload: 'Sie haben keine Berechtigung, Dateien herunterzuladen',
+    noPermissionPreview: 'Sie haben keine Berechtigung, Dateien in der Vorschau anzuzeigen',
+    preview3d: '3D-Vorschau',
     noPermissionRenameFile: 'Sie haben keine Berechtigung, diese Datei umzubenennen',
     noPermissionGenerateThumbnail: 'Sie haben keine Berechtigung, Vorschaubilder zu generieren',
     noPermissionDeleteFile: 'Sie haben keine Berechtigung, diese Datei zu löschen',
@@ -7062,6 +7064,9 @@ export default {
     thankYou: 'Vielen Dank!',
     submitted: 'Ihr Fehlerbericht wurde eingereicht.',
     viewIssue: 'Issue ansehen',
+    closeKeepsRecording: 'Sie können dieses Fenster schließen, während Sie das Problem reproduzieren — die Aufzeichnung läuft weiter, und beim erneuten Öffnen sind Sie wieder hier.',
+    resumeRecording: 'Fehlerbericht zeichnet auf — {{elapsed}}. Zum Abschließen klicken.',
+    resumeReport: 'Bericht fortsetzen',
     unexpectedError: 'Ein unerwarteter Fehler ist aufgetreten',
   },
   failureDetection: {

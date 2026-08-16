@@ -3972,6 +3972,8 @@ export default {
     noPermissionAddToQueue: 'You do not have permission to add to queue',
     noPermissionSlice: 'You do not have permission to slice files',
     noPermissionDownload: 'You do not have permission to download files',
+    noPermissionPreview: 'You do not have permission to preview files',
+    preview3d: '3D Preview',
     noPermissionRenameFile: 'You do not have permission to rename this file',
     noPermissionGenerateThumbnail: 'You do not have permission to generate thumbnails',
     noPermissionDeleteFile: 'You do not have permission to delete this file',
@@ -7113,6 +7115,9 @@ export default {
     thankYou: 'Thank you!',
     submitted: 'Your bug report has been submitted.',
     viewIssue: 'View Issue',
+    closeKeepsRecording: 'You can close this panel while you reproduce the problem — recording keeps running, and reopening brings you back here.',
+    resumeRecording: 'Bug report recording — {{elapsed}}. Click to finish.',
+    resumeReport: 'Resume report',
     unexpectedError: 'An unexpected error occurred',
   },
   failureDetection: {

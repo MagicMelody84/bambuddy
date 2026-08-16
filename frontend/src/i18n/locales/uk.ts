@@ -3970,6 +3970,8 @@ export default {
     noPermissionAddToQueue: "Ви не маєте дозволу на додавання в чергу",
     noPermissionSlice: "Ви не маєте дозволу нарізати файли",
     noPermissionDownload: "У вас немає дозволу на завантаження файлів",
+    noPermissionPreview: 'У вас немає дозволу на попередній перегляд файлів',
+    preview3d: '3D-перегляд',
     noPermissionRenameFile: "Ви не маєте дозволу на перейменування цього файлу",
     noPermissionGenerateThumbnail: "Ви не маєте дозволу створювати мініатюри",
     noPermissionDeleteFile: "Ви не маєте дозволу на видалення цього файлу",
@@ -7105,6 +7107,9 @@ export default {
     thankYou: "дякую!",
     submitted: "Ваш звіт про помилку надіслано.",
     viewIssue: "Переглянути випуск",
+    closeKeepsRecording: 'Ви можете закрити цю панель, поки відтворюєте проблему: запис триває, і після повторного відкриття ви повернетеся сюди.',
+    resumeRecording: 'Триває запис звіту про помилку — {{elapsed}}. Натисніть, щоб завершити.',
+    resumeReport: 'Продовжити звіт',
     unexpectedError: "Сталася неочікувана помилка",
   },
   failureDetection: {

@@ -3931,6 +3931,8 @@ export default {
     noPermissionSlice: 'Vous n\'avez pas la permission de découper des fichiers',
     noPermissionAddToQueue: 'Pas d\'autorisation file',
     noPermissionDownload: 'Pas d\'autorisation téléchargement',
+    noPermissionPreview: 'Vous n\'avez pas la permission de prévisualiser les fichiers',
+    preview3d: 'Aperçu 3D',
     noPermissionRenameFile: 'Pas d\'autorisation renommage fichier',
     noPermissionGenerateThumbnail: 'Pas d\'autorisation vignettes',
     noPermissionDeleteFile: 'Pas d\'autorisation suppression fichier',
@@ -7052,6 +7054,9 @@ export default {
     thankYou: 'Merci !',
     submitted: 'Votre rapport de bug a été soumis.',
     viewIssue: 'Voir l\'issue',
+    closeKeepsRecording: 'Vous pouvez fermer ce panneau pendant que vous reproduisez le problème : l\'enregistrement continue et sa réouverture vous ramènera ici.',
+    resumeRecording: 'Rapport de bogue en cours d\'enregistrement — {{elapsed}}. Cliquez pour terminer.',
+    resumeReport: 'Reprendre le rapport',
     unexpectedError: 'Une erreur inattendue est survenue',
   },
   failureDetection: {

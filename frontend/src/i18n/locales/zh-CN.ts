@@ -3930,6 +3930,8 @@ export default {
     noPermissionSlice: '您没有切片文件的权限',
     noPermissionAddToQueue: '您没有添加到队列的权限',
     noPermissionDownload: '您没有下载文件的权限',
+    noPermissionPreview: '您没有预览文件的权限',
+    preview3d: '3D 预览',
     noPermissionRenameFile: '您没有重命名此文件的权限',
     noPermissionGenerateThumbnail: '您没有生成缩略图的权限',
     noPermissionDeleteFile: '您没有删除此文件的权限',
@@ -7049,6 +7051,9 @@ export default {
     thankYou: '谢谢！',
     submitted: '您的错误报告已提交。',
     viewIssue: '查看Issue',
+    closeKeepsRecording: '重现问题时可以关闭此面板——记录会继续进行，重新打开后会回到这一步。',
+    resumeRecording: '错误报告记录中 — {{elapsed}}。点击以完成。',
+    resumeReport: '继续报告',
     unexpectedError: '发生了意外错误',
   },
   failureDetection: {
