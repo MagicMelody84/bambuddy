@@ -244,6 +244,13 @@ SAMPLE_DATA: dict[str, dict[str, str]] = {
         "timestamp": "2024-01-15 14:30",
         "app_name": "Bambuddy",
     },
+    "location_ha_sensor_alert": {
+        "location": "Drybox 1",
+        "sensor": "Drybox 1 Humidity",
+        "state": "68.00 %",
+        "timestamp": "2024-01-15 14:30",
+        "app_name": "Bambuddy",
+    },
     "test": {
         "app_name": "Bambuddy",
         "timestamp": "2024-01-15 14:30",
