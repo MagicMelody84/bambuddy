@@ -1701,6 +1701,58 @@ describe('SettingsPage — location sensor reachability', () => {
     await waitFor(() => expect(screen.queryByText('sensor.drybox_1_temperature')).not.toBeInTheDocument());
     expect(screen.getByText('sensor.drybox_1_humidity')).toBeInTheDocument();
   });
+
+  it('orders location cards by location, not by the order their sensors were created', async () => {
+    // Sensor for location 8 ("Drybox 10") appears in the array before the
+    // sensor for location 7 ("Drybox 2") — a naive Map-insertion-order
+    // render would put "Drybox 10" first. Card order must follow the
+    // (naturally sorted) locations list instead.
+    const sensors = [
+      {
+        id: 1,
+        location_id: 8,
+        name: 'Drybox 10 Temperature',
+        entity_id: 'sensor.drybox_10_temperature',
+        device_class: 'temperature',
+        unit: '°C',
+      },
+      {
+        id: 2,
+        location_id: 7,
+        name: 'Drybox 2 Temperature',
+        entity_id: 'sensor.drybox_2_temperature',
+        device_class: 'temperature',
+        unit: '°C',
+      },
+    ];
+
+    server.use(
+      http.get('/api/v1/location-ha-sensors/', () => HttpResponse.json(sensors)),
+      http.get('/api/v1/location-ha-sensors/by-location/7/readings', () => HttpResponse.json([])),
+      http.get('/api/v1/location-ha-sensors/by-location/8/readings', () => HttpResponse.json([])),
+      http.get('/api/v1/inventory/locations', () =>
+        HttpResponse.json([
+          { id: 7, name: 'Drybox 2', identifier: null, spool_count: 0, created_at: '', updated_at: '' },
+          { id: 8, name: 'Drybox 10', identifier: null, spool_count: 0, created_at: '', updated_at: '' },
+        ])
+      )
+    );
+
+    const user = userEvent.setup();
+    const { container } = render(<SettingsPage />);
+
+    await user.click(await screen.findByText('Sensors'));
+    await screen.findByText('sensor.drybox_10_temperature');
+
+    const cardTitles = Array.from(container.querySelectorAll('.text-white.font-medium.truncate')).map(
+      (el) => el.textContent
+    );
+    const drybox2Index = cardTitles.indexOf('Drybox 2');
+    const drybox10Index = cardTitles.indexOf('Drybox 10');
+    expect(drybox2Index).toBeGreaterThanOrEqual(0);
+    expect(drybox10Index).toBeGreaterThanOrEqual(0);
+    expect(drybox2Index).toBeLessThan(drybox10Index);
+  });
 });
 
 /**
