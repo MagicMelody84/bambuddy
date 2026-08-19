@@ -5843,7 +5843,7 @@ export default {
     notificationEvents: '알림 이벤트',
     progressPercent: '(25%, 50%, 75%)',
     bedCooledAfterPrint: '(인쇄 완료 후)',
-    haSensorAlert: '센서 경고',
+    haSensorAlert: '프린터 센서 경고',
     haSensorAlertDescription: '(연결된 Home Assistant 센서에 주의가 필요합니다)',
     locationHaSensorAlert: '보관 위치 센서 경고',
     locationHaSensorAlertDescription: '(보관 위치에 연결된 Home Assistant 센서에 주의가 필요합니다)',

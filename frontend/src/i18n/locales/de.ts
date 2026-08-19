@@ -6130,7 +6130,7 @@ export default {
     notificationEvents: 'Benachrichtigungsereignisse',
     progressPercent: '(25 %, 50 %, 75 %)',
     bedCooledAfterPrint: '(nach Druckabschluss)',
-    haSensorAlert: 'Sensor-Alarm',
+    haSensorAlert: 'Drucker-Sensor-Alarm',
     haSensorAlertDescription: '(ein verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',
     locationHaSensorAlert: 'Lagerort-Sensor-Alarm',
     locationHaSensorAlertDescription: '(ein mit einem Lagerort verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',

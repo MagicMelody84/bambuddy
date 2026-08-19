@@ -6173,7 +6173,7 @@ export default {
     notificationEvents: "Події сповіщень",
     progressPercent: "(25%, 50%, 75%)",
     bedCooledAfterPrint: "(після завершення друку)",
-    haSensorAlert: "Сповіщення датчика",
+    haSensorAlert: "Сповіщення датчика принтера",
     haSensorAlertDescription: "(пов'язаний датчик Home Assistant потребує уваги)",
     locationHaSensorAlert: "Сповіщення датчика місця зберігання",
     locationHaSensorAlertDescription: "(датчик Home Assistant, пов'язаний з місцем зберігання, потребує уваги)",

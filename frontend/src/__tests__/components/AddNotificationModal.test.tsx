@@ -462,7 +462,7 @@ describe('AddNotificationModal — Storage Location Sensor Alert toggle (#2824)'
   it('renders its own toggle, separate from the printer Sensor Alert toggle', async () => {
     render(<AddNotificationModal provider={buildProvider()} onClose={() => undefined} />);
 
-    expect(await screen.findByText('Sensor Alert')).toBeInTheDocument();
+    expect(await screen.findByText('Printer Sensor Alert')).toBeInTheDocument();
     expect(await screen.findByText('Storage Location Sensor Alert')).toBeInTheDocument();
   });
 

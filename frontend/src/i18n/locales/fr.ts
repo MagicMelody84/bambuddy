@@ -6120,7 +6120,7 @@ export default {
     notificationEvents: 'Événements de notification',
     progressPercent: '(25 %, 50 %, 75 %)',
     bedCooledAfterPrint: '(après la fin de l\'impression)',
-    haSensorAlert: 'Alerte de capteur',
+    haSensorAlert: "Alerte de capteur d'imprimante",
     haSensorAlertDescription: '(un capteur Home Assistant lié nécessite votre attention)',
     locationHaSensorAlert: 'Alerte de capteur d\'emplacement',
     locationHaSensorAlertDescription: '(un capteur Home Assistant lié à un emplacement de stockage nécessite votre attention)',

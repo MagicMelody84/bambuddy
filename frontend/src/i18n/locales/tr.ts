@@ -6080,7 +6080,7 @@ export default {
     notificationEvents: 'Bildirim Olayları',
     progressPercent: '(%25, %50, %75)',
     bedCooledAfterPrint: '(baskı tamamlandıktan sonra)',
-    haSensorAlert: 'Sensör Uyarısı',
+    haSensorAlert: 'Yazıcı Sensörü Uyarısı',
     haSensorAlertDescription: '(bağlı bir Home Assistant sensörü dikkat gerektiriyor)',
     locationHaSensorAlert: 'Konum Sensörü Uyarısı',
     locationHaSensorAlertDescription: '(bir depolama konumuna bağlı Home Assistant sensörü dikkat gerektiriyor)',

@@ -6181,7 +6181,7 @@ export default {
     notificationEvents: 'Notification Events',
     progressPercent: '(25%, 50%, 75%)',
     bedCooledAfterPrint: '(after print completes)',
-    haSensorAlert: 'Sensor Alert',
+    haSensorAlert: 'Printer Sensor Alert',
     haSensorAlertDescription: '(a bound Home Assistant sensor needs attention)',
     locationHaSensorAlert: 'Storage Location Sensor Alert',
     locationHaSensorAlertDescription: '(a Home Assistant sensor bound to a storage location needs attention)',

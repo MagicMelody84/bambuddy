@@ -6118,7 +6118,7 @@ export default {
     notificationEvents: '通知事件',
     progressPercent: '（25%、50%、75%）',
     bedCooledAfterPrint: '（打印完成后）',
-    haSensorAlert: '传感器警报',
+    haSensorAlert: '打印机传感器警报',
     haSensorAlertDescription: '（已绑定的 Home Assistant 传感器需要关注）',
     locationHaSensorAlert: '存放位置传感器警报',
     locationHaSensorAlertDescription: '（绑定到存放位置的 Home Assistant 传感器需要关注）',

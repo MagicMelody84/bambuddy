@@ -5830,7 +5830,7 @@ export default {
     notificationEvents: "События для уведомлений",
     progressPercent: "(25%, 50%, 75%)",
     bedCooledAfterPrint: "(после завершения печати)",
-    haSensorAlert: "Оповещение датчика",
+    haSensorAlert: "Оповещение датчика принтера",
     haSensorAlertDescription: "(связанный датчик Home Assistant требует внимания)",
     locationHaSensorAlert: "Оповещение датчика места хранения",
     locationHaSensorAlertDescription: "(датчик Home Assistant, связанный с местом хранения, требует внимания)",

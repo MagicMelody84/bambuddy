@@ -6131,7 +6131,7 @@ export default {
     notificationEvents: '通知イベント',
     progressPercent: '（25%、50%、75%）',
     bedCooledAfterPrint: '（印刷完了後）',
-    haSensorAlert: 'センサーアラート',
+    haSensorAlert: 'プリンターセンサーアラート',
     haSensorAlertDescription: '（連携した Home Assistant センサーに注意が必要です）',
     locationHaSensorAlert: '保管場所センサーアラート',
     locationHaSensorAlertDescription: '（保管場所に連携した Home Assistant センサーに注意が必要です）',
