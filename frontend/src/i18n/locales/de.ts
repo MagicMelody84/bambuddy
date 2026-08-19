@@ -4903,6 +4903,7 @@ export default {
     externalSpool: 'Externe Spule',
     profile: 'Profil',
     kFactor: 'K-Faktor',
+    kFactorShort: 'K',
     fill: 'Füllstand',
     configure: 'Konfigurieren',
     used: 'verwendet',

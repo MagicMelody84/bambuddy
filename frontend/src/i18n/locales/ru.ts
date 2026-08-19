@@ -4664,6 +4664,7 @@ export default {
     externalSpool: "Внешняя катушка",
     profile: "Профиль",
     kFactor: "Коэффициент K",
+    kFactorShort: "K",
     fill: "Заполнить",
     configure: "Настроить",
     used: "использовано",

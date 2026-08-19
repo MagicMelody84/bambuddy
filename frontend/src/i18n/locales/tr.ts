@@ -4880,6 +4880,7 @@ export default {
     externalSpool: 'Harici Makara',
     profile: 'Profil',
     kFactor: 'K Faktörü',
+    kFactorShort: 'K',
     fill: 'Doldur',
     configure: 'Yapılandır',
     used: 'kullanılan',
