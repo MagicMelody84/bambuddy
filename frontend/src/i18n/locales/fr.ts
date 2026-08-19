@@ -5756,6 +5756,7 @@ export default {
       confirmMessage: "Bambuddy a également trouvé d'autres capteurs pour cet emplacement. Choisissez ceux à ajouter aussi.",
       added: 'Également ajouté : {{names}}',
       noneFound: 'Aucun capteur de température, d\'humidité ou de batterie correspondant trouvé pour cet emplacement.',
+      onlyThisOne: 'Seulement celui-ci',
     },
     options: {
       buttonLabel: 'Options des capteurs',
@@ -6121,6 +6122,8 @@ export default {
     bedCooledAfterPrint: '(après la fin de l\'impression)',
     haSensorAlert: 'Alerte de capteur',
     haSensorAlertDescription: '(un capteur Home Assistant lié nécessite votre attention)',
+    locationHaSensorAlert: 'Alerte de capteur d\'emplacement',
+    locationHaSensorAlertDescription: '(un capteur Home Assistant lié à un emplacement de stockage nécessite votre attention)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'Priorité ntfy',

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { LocationHASensorReading } from '../api/client';
 
 export type LocationSensorCategory = 'temperature' | 'humidity' | 'battery';
@@ -64,12 +65,25 @@ export function loadLocationSensorColorizeValues(): boolean {
   }
 }
 
+// A plain localStorage.setItem never fires the browser's own 'storage'
+// event in the tab that made the change (only other tabs get that), and
+// these four values are read by an unknown number of already-mounted
+// components (the Inventory page, and one SpoolLocationFooter per card).
+// This lets useLocationSensorColorPrefs below re-read after a save instead
+// of every reader needing its own poll or the page needing a reload.
+const COLOR_PREFS_CHANGED_EVENT = 'bambuddy:location-sensor-color-prefs-changed';
+
+function notifyLocationSensorColorPrefsChanged() {
+  window.dispatchEvent(new Event(COLOR_PREFS_CHANGED_EVENT));
+}
+
 export function saveLocationSensorColorizeValues(value: boolean) {
   try {
     localStorage.setItem(COLORIZE_VALUES_STORAGE_KEY, String(value));
   } catch {
     return;
   }
+  notifyLocationSensorColorPrefsChanged();
 }
 
 export const LOCATION_SENSOR_ALERT_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'] as const;
@@ -108,6 +122,7 @@ export function saveLocationSensorAlertAboveColor(color: LocationSensorAlertColo
   } catch {
     return;
   }
+  notifyLocationSensorColorPrefsChanged();
 }
 
 export function loadLocationSensorAlertBelowColor(): LocationSensorAlertColor {
@@ -125,6 +140,7 @@ export function saveLocationSensorAlertBelowColor(color: LocationSensorAlertColo
   } catch {
     return;
   }
+  notifyLocationSensorColorPrefsChanged();
 }
 
 export function loadLocationSensorAlertOptimalColor(): LocationSensorAlertColor {
@@ -142,6 +158,42 @@ export function saveLocationSensorAlertOptimalColor(color: LocationSensorAlertCo
   } catch {
     return;
   }
+  notifyLocationSensorColorPrefsChanged();
+}
+
+export interface LocationSensorColorPrefs {
+  colorize: boolean;
+  aboveColor: LocationSensorAlertColor;
+  belowColor: LocationSensorAlertColor;
+  optimalColor: LocationSensorAlertColor;
+}
+
+function readLocationSensorColorPrefs(): LocationSensorColorPrefs {
+  return {
+    colorize: loadLocationSensorColorizeValues(),
+    aboveColor: loadLocationSensorAlertAboveColor(),
+    belowColor: loadLocationSensorAlertBelowColor(),
+    optimalColor: loadLocationSensorAlertOptimalColor(),
+  };
+}
+
+// Reads the four location-sensor colour preferences once and stays live:
+// a Settings save dispatches COLOR_PREFS_CHANGED_EVENT, and every mounted
+// caller of this hook (the Inventory page, previously also every
+// SpoolLocationFooter individually) picks it up without a reload. Callers
+// should read these values here and pass them down as props rather than
+// each calling this hook themselves — one subscription per page, not one
+// per card.
+export function useLocationSensorColorPrefs(): LocationSensorColorPrefs {
+  const [prefs, setPrefs] = useState<LocationSensorColorPrefs>(readLocationSensorColorPrefs);
+
+  useEffect(() => {
+    const onChange = () => setPrefs(readLocationSensorColorPrefs());
+    window.addEventListener(COLOR_PREFS_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(COLOR_PREFS_CHANGED_EVENT, onChange);
+  }, []);
+
+  return prefs;
 }
 
 export type LocationSensorAlertStatus = 'above' | 'below' | 'ok' | null;

@@ -83,14 +83,6 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   const [autoAddCandidates, setAutoAddCandidates] = useState<HADisplayEntity[]>([]);
   const [autoAddSelected, setAutoAddSelected] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
@@ -248,12 +240,18 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   });
 
   const overwriteMutation = useMutation({
-    mutationFn: () => api.deleteLocationHASensor(overwriteTarget!.id),
+    // PATCH the existing row onto the new entity instead of deleting it and
+    // creating a replacement: a delete-then-create left a window where, if
+    // the create failed, the old binding was already gone and nothing had
+    // taken its place. A single PATCH either lands or leaves the original
+    // binding untouched.
+    mutationFn: () => api.updateLocationHASensor(overwriteTarget!.id, buildPrimaryPayload()),
     onSuccess: () => {
       invalidate();
       setShowOverwriteConfirm(false);
       setOverwriteTarget(null);
-      saveMutation.mutate();
+      showToast(t('locationHaSensors.toast.updated'), 'success');
+      onClose();
     },
     onError: (err: Error) => {
       setShowOverwriteConfirm(false);
@@ -308,12 +306,29 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     return t(`haSensors.states.${key}`, { defaultValue: key });
   };
 
-  const isPending = saveMutation.isPending || deleteMutation.isPending || autoAddMutation.isPending;
+  const isPending =
+    saveMutation.isPending || deleteMutation.isPending || overwriteMutation.isPending || autoAddMutation.isPending;
   const currentLocation = locations.find((l) => l.id === Number(locationId));
+
+  // Escape closes the modal, but not while a mutation is mid-flight — a
+  // stray keypress landing between the overwrite PATCH's dispatch and its
+  // response must not drop the user out with an orphaned request.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isPending) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, isPending]);
 
   return (
     <>
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      onClick={() => {
+        if (!isPending) onClose();
+      }}
+    >
       <div
         className="bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -327,7 +342,11 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
               {isEditing ? t('locationHaSensors.editTitle') : t('locationHaSensors.addTitle')}
             </h2>
           </div>
-          <button onClick={onClose} className="text-bambu-gray hover:text-white transition-colors">
+          <button
+            onClick={onClose}
+            disabled={isPending}
+            className="text-bambu-gray hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -591,6 +610,10 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
         isLoading={autoAddMutation.isPending}
         confirmDisabled={!autoAddCandidates.some((e) => autoAddSelected[e.entity_id])}
         onConfirm={() => autoAddMutation.mutate()}
+        // "Cancel" here still saves the sensor the user picked — it only
+        // skips the siblings — so the button needs to say what it does
+        // rather than implying the whole thing is being abandoned.
+        cancelText={t('locationHaSensors.autoAdd.onlyThisOne')}
         onCancel={() => {
           setShowAutoAddConfirm(false);
           setAutoAddCandidates([]);

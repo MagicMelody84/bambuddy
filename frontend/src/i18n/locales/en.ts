@@ -5817,6 +5817,7 @@ export default {
       confirmMessage: 'Bambuddy also found other sensors for this location. Choose which ones to add too.',
       added: 'Also added: {{names}}',
       noneFound: 'No matching temperature, humidity, or battery sensors found for this location.',
+      onlyThisOne: 'Only this one',
     },
     options: {
       buttonLabel: 'Sensor options',
@@ -6182,6 +6183,8 @@ export default {
     bedCooledAfterPrint: '(after print completes)',
     haSensorAlert: 'Sensor Alert',
     haSensorAlertDescription: '(a bound Home Assistant sensor needs attention)',
+    locationHaSensorAlert: 'Storage Location Sensor Alert',
+    locationHaSensorAlertDescription: '(a Home Assistant sensor bound to a storage location needs attention)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy Priority',

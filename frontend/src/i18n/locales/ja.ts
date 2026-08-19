@@ -5767,6 +5767,7 @@ export default {
       confirmMessage: 'Bambuddy がこの保管場所の他のセンサーも見つけました。追加するものを選んでください。',
       added: '追加で連携しました: {{names}}',
       noneFound: 'この保管場所に一致する温度・湿度・バッテリーセンサーが見つかりませんでした。',
+      onlyThisOne: 'これだけ',
     },
     options: {
       buttonLabel: 'センサーオプション',
@@ -6132,6 +6133,8 @@ export default {
     bedCooledAfterPrint: '（印刷完了後）',
     haSensorAlert: 'センサーアラート',
     haSensorAlertDescription: '（連携した Home Assistant センサーに注意が必要です）',
+    locationHaSensorAlert: '保管場所センサーアラート',
+    locationHaSensorAlertDescription: '（保管場所に連携した Home Assistant センサーに注意が必要です）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 優先度',

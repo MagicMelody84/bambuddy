@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -414,6 +414,33 @@ describe('LocationHASensorModal', () => {
     expect(createSensor).not.toHaveBeenCalledWith(expect.objectContaining({ entity_id: 'sensor.drybox_1_battery' }));
   });
 
+  it('declining the auto-add prompt still saves the primary sensor, and says so on the button', async () => {
+    // "Cancel" here doesn't abandon the save — it saves the sensor the user
+    // picked and only skips the siblings — so the button must say that
+    // rather than the default "Cancel", which would read as discarding
+    // everything.
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_humidity', friendly_name: 'Drybox 1 Humidity', domain: 'sensor', device_class: 'humidity', unit_of_measurement: '%', state: '40' },
+      { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+    ] as never);
+    getLocationSensors.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Humidity'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    const title = await screen.findByText('Add the other sensors too?');
+    const confirmDialog = within(title.closest('.bg-bambu-dark-secondary') as HTMLElement);
+
+    expect(confirmDialog.queryByRole('button', { name: /^cancel$/i })).not.toBeInTheDocument();
+    await user.click(confirmDialog.getByRole('button', { name: /only this one/i }));
+
+    await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(1));
+    expect(createSensor).toHaveBeenCalledWith(expect.objectContaining({ entity_id: 'sensor.drybox_1_humidity' }));
+  });
+
   it('applies the saved per-category defaults to auto-added sibling sensors', async () => {
     vi.mocked(window.localStorage.getItem).mockReturnValue(
       JSON.stringify({
@@ -555,5 +582,114 @@ describe('LocationHASensorModal', () => {
       await screen.findByText(/No matching temperature, humidity, or battery sensors found/)
     ).toBeInTheDocument();
     await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('LocationHASensorModal — overwrite path (#2824)', () => {
+  beforeEach(() => {
+    getSettings.mockReset();
+    getEntities.mockReset();
+    getEntities.mockResolvedValue([]);
+    getLocationSensors.mockReset();
+    getLocationSensors.mockResolvedValue([]);
+    createSensor.mockReset();
+    createSensor.mockResolvedValue({} as never);
+    updateSensor.mockReset();
+    updateSensor.mockResolvedValue({} as never);
+    vi.mocked(window.localStorage.getItem).mockReset();
+  });
+
+  const existingSensor = {
+    id: 42,
+    location_id: 7,
+    name: 'Old Drybox Temp',
+    entity_id: 'sensor.drybox_1_temp_old',
+    kind: 'numeric',
+    device_class: 'temperature',
+    unit: '°C',
+    alert_state: null,
+    alert_above: null,
+    alert_below: null,
+    notify_on_alert: false,
+    show_on_card: true,
+  };
+
+  it('PATCHes the existing sensor onto the new entity instead of deleting and recreating', async () => {
+    // Regression: delete-then-create left a window where, if the create
+    // failed after the delete succeeded, the location's binding was gone
+    // with nothing in its place. A single PATCH avoids that window, and
+    // this also proves nothing calls deleteLocationHASensor on this path.
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      {
+        entity_id: 'sensor.drybox_1_temp_new',
+        friendly_name: 'Drybox 1 Temp (new)',
+        domain: 'sensor',
+        device_class: 'temperature',
+        unit_of_measurement: '°C',
+        state: '22.0',
+      },
+    ] as never);
+    getLocationSensors.mockResolvedValue([existingSensor] as never);
+
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={onClose} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp (new)'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(await screen.findByText('Replace existing sensor?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(updateSensor).toHaveBeenCalledTimes(1));
+    expect(updateSensor).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ entity_id: 'sensor.drybox_1_temp_new', name: 'Drybox 1 Temp (new)' })
+    );
+    expect(createSensor).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('does not close on Escape or backdrop click while the overwrite PATCH is in flight', async () => {
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      {
+        entity_id: 'sensor.drybox_1_temp_new',
+        friendly_name: 'Drybox 1 Temp (new)',
+        domain: 'sensor',
+        device_class: 'temperature',
+        unit_of_measurement: '°C',
+        state: '22.0',
+      },
+    ] as never);
+    getLocationSensors.mockResolvedValue([existingSensor] as never);
+    let resolveUpdate: (() => void) | undefined;
+    updateSensor.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = () => resolve({} as never);
+        })
+    );
+
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(<LocationHASensorModal locations={LOCATIONS} onClose={onClose} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp (new)'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    await screen.findByText('Replace existing sensor?');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(updateSensor).toHaveBeenCalled());
+
+    await user.keyboard('{Escape}');
+    const backdrop = container.querySelector('.fixed.inset-0.bg-black\\/70');
+    if (backdrop) await user.click(backdrop);
+
+    expect(onClose).not.toHaveBeenCalled();
+
+    resolveUpdate?.();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });

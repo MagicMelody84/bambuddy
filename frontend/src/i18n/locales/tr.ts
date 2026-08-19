@@ -5730,6 +5730,7 @@ export default {
       confirmMessage: 'Bambuddy bu konum için başka sensörler de buldu. Eklemek istediklerinizi seçin.',
       added: 'Ayrıca eklendi: {{names}}',
       noneFound: 'Bu konum için eşleşen sıcaklık, nem veya pil sensörü bulunamadı.',
+      onlyThisOne: 'Sadece bunu',
     },
     options: {
       buttonLabel: 'Sensör seçenekleri',
@@ -6081,6 +6082,8 @@ export default {
     bedCooledAfterPrint: '(baskı tamamlandıktan sonra)',
     haSensorAlert: 'Sensör Uyarısı',
     haSensorAlertDescription: '(bağlı bir Home Assistant sensörü dikkat gerektiriyor)',
+    locationHaSensorAlert: 'Konum Sensörü Uyarısı',
+    locationHaSensorAlertDescription: '(bir depolama konumuna bağlı Home Assistant sensörü dikkat gerektiriyor)',
     eventPriority: {
       sectionTitle: 'ntfy Önceliği',
       helpNtfy: 'Her etkin olay için bir öncelik seçin. ntfy uyarıları kademelendirmek için bunları kullanır (ses, görünürlük, push davranışı). Burada ayarlanmamış seviyeler ntfy sunucu varsayılanını kullanır.',

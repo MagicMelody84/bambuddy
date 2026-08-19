@@ -5747,11 +5747,11 @@ export default {
   locationHaSensors: {
     sectionTitle: 'Home-Assistant-Sensoren (Lagerorte)',
     sectionDescription:
-      'Binde Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an deine Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
+      'Binden Sie Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an Ihre Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
     add: 'Sensor hinzufügen',
     addTitle: 'Home-Assistant-Sensor hinzufügen',
     editTitle: 'Home-Assistant-Sensor bearbeiten',
-    empty: 'Noch keine Sensoren. Verknüpfe einen Temperatur- oder Feuchtigkeitssensor aus Home Assistant, um ihn auf der Filament-Karte anzuzeigen.',
+    empty: 'Noch keine Sensoren. Verknüpfen Sie einen Temperatur- oder Feuchtigkeitssensor aus Home Assistant, um ihn auf der Filament-Karte anzuzeigen.',
     unknownLocation: 'Unbekannter Lagerort',
     location: 'Lagerort',
     showOnCard: 'Auf Filament-Karte anzeigen',
@@ -5763,9 +5763,10 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Auch die anderen Sensoren hinzufügen?',
-      confirmMessage: 'Bambuddy hat für diesen Lagerort auch weitere Sensoren gefunden. Wähle aus, welche zusätzlich hinzugefügt werden sollen.',
+      confirmMessage: 'Bambuddy hat für diesen Lagerort auch weitere Sensoren gefunden. Wählen Sie aus, welche zusätzlich hinzugefügt werden sollen.',
       added: 'Zusätzlich hinzugefügt: {{names}}',
       noneFound: 'Keine passenden Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren für diesen Lagerort gefunden.',
+      onlyThisOne: 'Nur dieser',
     },
     options: {
       buttonLabel: 'Sensor-Optionen',
@@ -5804,7 +5805,7 @@ export default {
     },
     currentlyBound: 'Aktuell gebunden: {{entity}}',
     error: {
-      locationRequired: 'Wähle einen Lagerort',
+      locationRequired: 'Wählen Sie einen Lagerort',
     },
     toast: {
       created: 'Sensor hinzugefügt',
@@ -6131,6 +6132,8 @@ export default {
     bedCooledAfterPrint: '(nach Druckabschluss)',
     haSensorAlert: 'Sensor-Alarm',
     haSensorAlertDescription: '(ein verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',
+    locationHaSensorAlert: 'Lagerort-Sensor-Alarm',
+    locationHaSensorAlertDescription: '(ein mit einem Lagerort verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy-Priorität',

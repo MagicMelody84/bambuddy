@@ -2365,6 +2365,7 @@ export interface LocationHASensorReading {
   alert_above: number | null;
   alert_below: number | null;
   last_changed: string | null;
+  show_on_card: boolean;
 }
 
 export interface LocationHASensorCreate {
@@ -2865,6 +2866,7 @@ export interface NotificationProvider {
   // Bed cooled
   on_bed_cooled: boolean;
   on_ha_sensor_alert: boolean;
+  on_location_ha_sensor_alert: boolean;
   // First layer complete
   on_first_layer_complete: boolean;
   // Inventory stock alerts
@@ -2928,6 +2930,7 @@ export interface NotificationProviderCreate {
   // Bed cooled
   on_bed_cooled?: boolean;
   on_ha_sensor_alert?: boolean;
+  on_location_ha_sensor_alert?: boolean;
   // First layer complete
   on_first_layer_complete?: boolean;
   // Inventory stock alerts
@@ -2984,6 +2987,7 @@ export interface NotificationProviderUpdate {
   // Bed cooled
   on_bed_cooled?: boolean;
   on_ha_sensor_alert?: boolean;
+  on_location_ha_sensor_alert?: boolean;
   // First layer complete
   on_first_layer_complete?: boolean;
   // Inventory stock alerts

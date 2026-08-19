@@ -5496,6 +5496,7 @@ export default {
       confirmMessage: 'Bambuddy가 이 위치의 다른 센서도 찾았습니다. 추가할 항목을 선택하세요.',
       added: '다음도 추가됨: {{names}}',
       noneFound: '이 위치에 일치하는 온도, 습도 또는 배터리 센서를 찾을 수 없습니다.',
+      onlyThisOne: '이것만',
     },
     options: {
       buttonLabel: '센서 옵션',
@@ -5844,6 +5845,8 @@ export default {
     bedCooledAfterPrint: '(인쇄 완료 후)',
     haSensorAlert: '센서 경고',
     haSensorAlertDescription: '(연결된 Home Assistant 센서에 주의가 필요합니다)',
+    locationHaSensorAlert: '보관 위치 센서 경고',
+    locationHaSensorAlertDescription: '(보관 위치에 연결된 Home Assistant 센서에 주의가 필요합니다)',
     eventPriority: {
       sectionTitle: 'ntfy 우선순위',
       helpNtfy: '각 활성화된 이벤트에 대한 우선순위를 선택하세요. ntfy는 이를 사용하여 알림을 에스컬레이션합니다(소리, 가시성, 푸시 동작). 여기서 설정되지 않은 수준은 ntfy 서버 기본값을 사용합니다.',

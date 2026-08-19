@@ -12,14 +12,11 @@ import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPre
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
 import {
-  loadLocationSensorAlertAboveColor,
-  loadLocationSensorAlertBelowColor,
-  loadLocationSensorAlertOptimalColor,
-  loadLocationSensorColorizeValues,
   locationSensorReadingAlertStatus,
   locationSensorValueColorClass,
+  useLocationSensorColorPrefs,
 } from '../utils/locationSensorDefaults';
-import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
+import { describeHASensorReading, iconForHASensor } from '../utils/haSensorDisplay';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
 import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, LocationHASensorReading, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
@@ -196,15 +193,7 @@ function describeLocationSensorValue(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string | null {
   if (!reading) return null;
-  if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
-  if (reading.kind === 'numeric') {
-    if (reading.value === null) return reading.state;
-    const formatted = reading.value.toFixed(2);
-    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
-  }
-  const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
-  const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
-  return t(`haSensors.states.${key}`, { defaultValue: key });
+  return describeHASensorReading(reading, t, { decimals: 2 });
 }
 
 export function SettingsPage() {
@@ -236,14 +225,12 @@ export function SettingsPage() {
   const [showLocationHASensorModal, setShowLocationHASensorModal] = useState(false);
   const [editingLocationHASensor, setEditingLocationHASensor] = useState<LocationHASensor | null>(null);
   const [showLocationSensorOptionsModal, setShowLocationSensorOptionsModal] = useState(false);
-  const [colorizeLocationSensorValues, setColorizeLocationSensorValues] = useState(() =>
-    loadLocationSensorColorizeValues()
-  );
-  const [locationSensorAboveColor, setLocationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
-  const [locationSensorBelowColor, setLocationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
-  const [locationSensorOptimalColor, setLocationSensorOptimalColor] = useState(() =>
-    loadLocationSensorAlertOptimalColor()
-  );
+  const {
+    colorize: colorizeLocationSensorValues,
+    aboveColor: locationSensorAboveColor,
+    belowColor: locationSensorBelowColor,
+    optimalColor: locationSensorOptimalColor,
+  } = useLocationSensorColorPrefs();
   const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
     locationName: string;
     sensorIds: number[];
@@ -6215,15 +6202,7 @@ export function SettingsPage() {
       )}
 
       {showLocationSensorOptionsModal && (
-        <LocationSensorOptionsModal
-          onClose={() => {
-            setShowLocationSensorOptionsModal(false);
-            setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
-            setLocationSensorAboveColor(loadLocationSensorAlertAboveColor());
-            setLocationSensorBelowColor(loadLocationSensorAlertBelowColor());
-            setLocationSensorOptimalColor(loadLocationSensorAlertOptimalColor());
-          }}
-        />
+        <LocationSensorOptionsModal onClose={() => setShowLocationSensorOptionsModal(false)} />
       )}
 
       {deleteLocationSensorsTarget && (

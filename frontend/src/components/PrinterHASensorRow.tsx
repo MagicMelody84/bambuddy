@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../api/client';
 import type { PrinterHASensorReading } from '../api/client';
-import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
+import { describeHASensorReading, iconForHASensor } from '../utils/haSensorDisplay';
 
 /**
  * The Home Assistant sensors bound to a printer, on its card (#1148, #448).
@@ -32,16 +32,7 @@ export function PrinterHASensorRow({ printerId }: Props) {
 
   if (!readings?.length) return null;
 
-  const describe = (reading: PrinterHASensorReading): string => {
-    if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
-    if (reading.kind === 'numeric') {
-      if (reading.value === null) return reading.state;
-      return reading.unit ? `${reading.value} ${reading.unit}` : String(reading.value);
-    }
-    const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
-    const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
-    return t(`haSensors.states.${key}`, { defaultValue: key });
-  };
+  const describe = (reading: PrinterHASensorReading): string => describeHASensorReading(reading, t);
 
   return (
     <div className="flex items-center gap-2 mt-2">

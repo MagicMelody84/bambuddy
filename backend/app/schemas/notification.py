@@ -65,9 +65,15 @@ class NotificationProviderBase(BaseModel):
         default=False, description="Notify when AMS-HT temperature exceeds threshold"
     )
 
-    # Event triggers - Home Assistant sensors (#1148)
+    # Event triggers - Home Assistant sensors bound to a printer (#1148)
     on_ha_sensor_alert: bool = Field(
         default=False, description="Notify when a bound Home Assistant sensor enters its alert state"
+    )
+
+    # Event triggers - Home Assistant sensors bound to a storage location (#2824)
+    on_location_ha_sensor_alert: bool = Field(
+        default=False,
+        description="Notify when a Home Assistant sensor bound to a storage location enters its alert state",
     )
 
     # Event triggers - Build plate detection
@@ -159,8 +165,11 @@ class NotificationProviderUpdate(BaseModel):
     on_ams_ht_humidity_high: bool | None = None
     on_ams_ht_temperature_high: bool | None = None
 
-    # Event triggers - Home Assistant sensors (#1148)
+    # Event triggers - Home Assistant sensors bound to a printer (#1148)
     on_ha_sensor_alert: bool | None = None
+
+    # Event triggers - Home Assistant sensors bound to a storage location (#2824)
+    on_location_ha_sensor_alert: bool | None = None
 
     # Event triggers - Build plate detection
     on_plate_not_empty: bool | None = None

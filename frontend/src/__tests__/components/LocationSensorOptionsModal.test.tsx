@@ -158,6 +158,15 @@ describe('LocationSensorOptionsModal', () => {
 
     expect(await screen.findByText('Forbidden')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+    // The server call happens before the localStorage writes, so a failed
+    // PATCH must leave every local preference untouched — the error toast
+    // says nothing was saved, and that has to stay true.
+    const writtenKeys = vi.mocked(window.localStorage.setItem).mock.calls.map((call) => call[0]);
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-auto-add-defaults');
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-colorize-values');
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-alert-above-color');
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-alert-below-color');
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-alert-optimal-color');
   });
 
   it('clamps a poll interval below the 60s minimum on blur', async () => {
@@ -241,6 +250,29 @@ describe('LocationSensorOptionsModal', () => {
     await user.click(cancelButtons[cancelButtons.length - 1]);
 
     expect(updateSensor).not.toHaveBeenCalled();
+  });
+
+  it('dismissing the reset confirm by clicking its own overlay does not close the Options dialog', async () => {
+    // Regression: ConfirmModal used to render inside the Options overlay's
+    // onClick=onClose div. ConfirmModal's own overlay doesn't stop
+    // propagation, so a click meant only to dismiss it bubbled up and closed
+    // Options too, dropping whatever the user had already changed.
+    getLocationSensors.mockResolvedValue([{ id: 1, device_class: 'temperature' } as never]);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(<LocationSensorOptionsModal onClose={onClose} />);
+
+    await screen.findByText('Battery');
+    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+    await screen.findByText(/cannot be undone/i);
+
+    const overlays = container.querySelectorAll('.fixed.inset-0');
+    expect(overlays.length).toBe(2);
+    const confirmOverlay = overlays[overlays.length - 1];
+    await user.click(confirmOverlay);
+
+    expect(screen.queryByText(/cannot be undone/i)).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('does not persist anything when cancelled', async () => {

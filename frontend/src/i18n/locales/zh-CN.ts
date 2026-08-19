@@ -5754,6 +5754,7 @@ export default {
       confirmMessage: 'Bambuddy 还为此位置找到了其他传感器。请选择要一并添加的传感器。',
       added: '已同时添加：{{names}}',
       noneFound: '未找到该位置匹配的温度、湿度或电池传感器。',
+      onlyThisOne: '仅此一个',
     },
     options: {
       buttonLabel: '传感器选项',
@@ -6119,6 +6120,8 @@ export default {
     bedCooledAfterPrint: '（打印完成后）',
     haSensorAlert: '传感器警报',
     haSensorAlertDescription: '（已绑定的 Home Assistant 传感器需要关注）',
+    locationHaSensorAlert: '存放位置传感器警报',
+    locationHaSensorAlertDescription: '（绑定到存放位置的 Home Assistant 传感器需要关注）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 优先级',

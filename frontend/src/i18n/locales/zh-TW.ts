@@ -5754,6 +5754,7 @@ export default {
       confirmMessage: 'Bambuddy 也為此位置找到了其他感測器。請選擇要一併新增的感測器。',
       added: '已同時新增：{{names}}',
       noneFound: '未找到該位置相符的溫度、濕度或電池感測器。',
+      onlyThisOne: '僅此一個',
     },
     options: {
       buttonLabel: '感測器選項',
@@ -6119,6 +6120,8 @@ export default {
     bedCooledAfterPrint: '（列印完成後）',
     haSensorAlert: '感測器警報',
     haSensorAlertDescription: '（已綁定的 Home Assistant 感測器需要注意）',
+    locationHaSensorAlert: '存放位置感測器警報',
+    locationHaSensorAlertDescription: '（綁定至存放位置的 Home Assistant 感測器需要注意）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 優先級',

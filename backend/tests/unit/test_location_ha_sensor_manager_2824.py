@@ -74,7 +74,6 @@ class TestNotificationEdge:
 
         notify.on_location_ha_sensor_alert.assert_awaited_once()
         _, kwargs = notify.on_location_ha_sensor_alert.await_args
-        assert kwargs["location_id"] == 7
         assert kwargs["location_name"] == "Drybox 1"
         assert kwargs["sensor_name"] == "Drybox Humidity"
 

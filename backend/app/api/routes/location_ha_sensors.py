@@ -129,6 +129,7 @@ async def get_location_sensor_readings(
                 alert_above=sensor.alert_above,
                 alert_below=sensor.alert_below,
                 last_changed=sensor.last_changed,
+                show_on_card=sensor.show_on_card,
             )
         )
     return readings

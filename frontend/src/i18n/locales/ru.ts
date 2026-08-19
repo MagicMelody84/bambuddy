@@ -5484,6 +5484,7 @@ export default {
       confirmMessage: "Bambuddy также нашёл другие датчики для этого места. Выберите, какие добавить.",
       added: "Также добавлено: {{names}}",
       noneFound: "Подходящие датчики температуры, влажности или заряда батареи для этого места не найдены.",
+      onlyThisOne: "Только этот",
     },
     options: {
       buttonLabel: "Настройки датчиков",
@@ -5831,6 +5832,8 @@ export default {
     bedCooledAfterPrint: "(после завершения печати)",
     haSensorAlert: "Оповещение датчика",
     haSensorAlertDescription: "(связанный датчик Home Assistant требует внимания)",
+    locationHaSensorAlert: "Оповещение датчика места хранения",
+    locationHaSensorAlertDescription: "(датчик Home Assistant, связанный с местом хранения, требует внимания)",
     eventPriority: {
       sectionTitle: "Приоритет ntfy",
       helpNtfy: "Выберите приоритет для каждого включённого события. ntfy использует его для усиления оповещений: звука, видимости и поведения push-уведомлений. Для неуказанных событий используется приоритет по умолчанию сервера ntfy.",
