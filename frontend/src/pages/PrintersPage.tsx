@@ -3,6 +3,12 @@ import { createPortal } from 'react-dom';
 import { compareFwVersions } from '../utils/firmwareVersion';
 import { formatPrintName } from '../utils/printName';
 import { computePopoverPosition, type PopoverPosition } from '../utils/popoverPosition';
+import {
+  openCameraWindow,
+  readStoredCameraViewMode,
+  storeCameraViewMode,
+  type CameraViewMode,
+} from '../utils/camera';
 import { resolveDryingPresetKey, type DryingPreset } from '../utils/dryingPresets';
 import { computeStartAfter, type DryingStartMode } from '../lib/scheduledDrying';
 import {
@@ -132,6 +138,7 @@ import {
   LayoutGrid,
   MonitorPlay,
   ExternalLink,
+  PictureInPicture2,
 } from 'lucide-react';
 
 // Aliased: lucide-react already exports a `Link` icon into this module.
@@ -146,6 +153,7 @@ import { BulkPrinterToolbar, type PrinterState } from '../components/BulkPrinter
 import { FileManagerModal } from '../components/FileManagerModal';
 import { EmbeddedCameraViewer } from '../components/EmbeddedCameraViewer';
 import { CameraWall } from '../components/CameraWall';
+import { ContextMenu, type ContextMenuItem } from '../components/ContextMenu';
 import { MQTTDebugModal } from '../components/MQTTDebugModal';
 import { HMSErrorModal, filterKnownHMSErrors } from '../components/HMSErrorModal';
 import { AiDetectionModal } from '../components/AiDetectionModal';
@@ -166,8 +174,8 @@ import { SkipObjectsModal, SkipObjectsIcon } from '../components/SkipObjectsModa
 import { FileUploadModal } from '../components/FileUploadModal';
 import { PrintModal } from '../components/PrintModal';
 import { PrinterInfoModal } from '../components/PrinterInfoModal';
-import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool, resolveSlotNozzleDiameter } from '../utils/amsHelpers';
-import { MAX_CHAMBER_TEMP_C, getPrinterImage, getWifiStrength, filterCompatibleQueueItems } from '../utils/printer';
+import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool, resolveSlotNozzleDiameter, resolveSlotExtruder, FTS_INLET_SIDE } from '../utils/amsHelpers';
+import { MAX_CHAMBER_TEMP_C, getPrinterImage, getWifiStrength, filterCompatibleQueueItems, isPrinterCurrentlyDispatchable } from '../utils/printer';
 import { FilamentSlotCircle } from '../components/FilamentSlotCircle';
 import { Collapsible } from '../components/Collapsible';
 import { ConnectionDiagnosticModal, DiagnosticChecklist } from '../components/ConnectionDiagnostic';
@@ -209,16 +217,64 @@ function formatKValue(k: number | null | undefined): string {
 // Nozzle side indicators (Bambu Lab style - square badge with L/R)
 function NozzleBadge({ side }: { side: 'L' | 'R' }) {
   const { mode } = useTheme();
+  const { t } = useTranslation();
   // Light mode: #e7f5e9 (light green), Dark mode: #1a4d2e (dark green)
   const bgColor = mode === 'dark' ? '#1a4d2e' : '#e7f5e9';
   return (
     <span
       className="inline-flex items-center justify-center w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)] text-[length:var(--pc-t10,10px)] font-bold rounded"
       style={{ backgroundColor: bgColor, color: '#00ae42' }}
+      title={side === 'L' ? t('common.left') : t('common.right')}
     >
       {side}
     </span>
   );
+}
+
+// Filament Track Switch inlet indicator. Same L/R lettering as NozzleBadge but
+// deliberately a different colour, because it means something different: this
+// AMS is plumbed into one switch inlet and reaches BOTH nozzles through it.
+function InletBadge({ inlet, title }: { inlet: 'A' | 'B'; title: string }) {
+  const { mode } = useTheme();
+  const bgColor = mode === 'dark' ? '#1e3a5f' : '#e3f0fb';
+  return (
+    <span
+      className="inline-flex items-center justify-center w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)] text-[length:var(--pc-t10,10px)] font-bold rounded"
+      style={{ backgroundColor: bgColor, color: '#3b82f6' }}
+      title={title}
+    >
+      {FTS_INLET_SIDE[inlet]}
+    </span>
+  );
+}
+
+/**
+ * Which side indicator, if any, belongs on an AMS card header.
+ *
+ * Three sources, in descending authority:
+ *   1. A Filament Track Switch inlet binding — the AMS feeds both nozzles
+ *      through the switch, so the inlet is the only meaningful label.
+ *   2. A real extruder id from ams_extruder_map.
+ *   3. The AMS unit id, as a last-resort guess for dual-nozzle printers that
+ *      never reported a map. This one is only a guess, and it is suppressed
+ *      when a switch is installed: with an FTS every unit reports extruder
+ *      0xE, so the fallback would silently label AMS 0 "R" and AMS 1 "L" from
+ *      nothing but their unit numbers.
+ */
+function amsSideBadge(
+  amsId: number,
+  amsExtruderMap: Record<string, number>,
+  amsSwitchInlet: Record<string, 'A' | 'B'>,
+  ftsInstalled: boolean
+): { kind: 'inlet'; inlet: 'A' | 'B' } | { kind: 'nozzle'; side: 'L' | 'R' } | null {
+  const inlet = amsSwitchInlet[String(amsId)];
+  if (inlet) return { kind: 'inlet', inlet };
+
+  const mapped = amsExtruderMap[String(amsId)];
+  const extruderId = mapped !== undefined ? mapped : ftsInstalled ? undefined : amsId >= 128 ? amsId - 128 : amsId;
+  if (extruderId === 1) return { kind: 'nozzle', side: 'L' };
+  if (extruderId === 0) return { kind: 'nozzle', side: 'R' };
+  return null;
 }
 
 // Expand nozzle type codes to material names
@@ -2013,6 +2069,7 @@ function PrinterCard({
   timeFormat = 'system',
   cameraViewMode = 'window',
   onOpenEmbeddedCamera,
+  onSelectCameraViewMode,
   checkPrinterFirmware = true,
   dryingPresets = DRYING_PRESETS,
   requirePlateClear = false,
@@ -2052,8 +2109,9 @@ function PrinterCard({
   spoolmanLoading?: boolean;
   onUnassignSpoolmanSpool?: (spoolmanSpoolId: number) => void;
   timeFormat?: 'system' | '12h' | '24h';
-  cameraViewMode?: 'window' | 'embedded';
+  cameraViewMode?: CameraViewMode;
   onOpenEmbeddedCamera?: (printerId: number, printerName: string) => void;
+  onSelectCameraViewMode?: (mode: CameraViewMode) => void;
   checkPrinterFirmware?: boolean;
   dryingPresets?: Record<string, DryingPreset>;
   requirePlateClear?: boolean;
@@ -2179,6 +2237,11 @@ function PrinterCard({
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isDropUploading, setIsDropUploading] = useState(false);
   const printerActionsMenuRef = useRef<HTMLDivElement>(null);
+  // Viewport coordinates, because the camera mode menu is a `ContextMenu` at
+  // `position: fixed`. The button sits in the card's footer, so a menu drawn
+  // inside the card would have to open upward into the card body; anchored to
+  // the viewport it escapes the card and the grid's scroll container both.
+  const [cameraMenuAnchor, setCameraMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const dragCounterRef = useRef(0);
   const [amsHistoryModal, setAmsHistoryModal] = useState<{
     amsId: number;
@@ -2404,6 +2467,20 @@ function PrinterCard({
     ? status.ams_extruder_map
     : cachedAmsExtruderMap.current;
 
+  // Same caching for the Filament Track Switch inlet bindings, for the same
+  // reason: a partial MQTT frame briefly empties the map and the badges would
+  // otherwise blink out.
+  const cachedAmsSwitchInlet = useRef<Record<string, 'A' | 'B'>>({});
+  useEffect(() => {
+    if (status?.ams_switch_inlet && Object.keys(status.ams_switch_inlet).length > 0) {
+      cachedAmsSwitchInlet.current = status.ams_switch_inlet;
+    }
+  }, [status?.ams_switch_inlet]);
+  const ftsInstalled = status?.fila_switch?.installed === true;
+  const amsSwitchInlet = (status?.ams_switch_inlet && Object.keys(status.ams_switch_inlet).length > 0)
+    ? status.ams_switch_inlet
+    : cachedAmsSwitchInlet.current;
+
   // Cache AMS data to prevent it disappearing on idle/offline printers
   const cachedAmsData = useRef<AMSUnit[]>([]);
   useEffect(() => {
@@ -2538,7 +2615,10 @@ function PrinterCard({
   const lastPrint = lastPrints?.[0];
   const isPrintingOrPaused = status?.state === 'RUNNING' || status?.state === 'PAUSE';
   const needsPlateClear = requirePlateClear && status?.awaiting_plate_clear === true;
-  const showClearPlateButton = status?.connected && needsPlateClear && !isPrintingOrPaused;
+  // Not gated on `connected`: the plate-clear gate is Bambuddy-side state, and with
+  // Auto Power Off the printer is powered down exactly when the operator clears the
+  // plate. Hiding the control there left no way to release the gate (#2864).
+  const showClearPlateButton = needsPlateClear && !isPrintingOrPaused;
   const activePrintName = status?.current_print && isPrintingOrPaused
     ? formatPrintName(status.subtask_name || status.current_print || null, status.gcode_file, t, activePlateLabel)
     : null;
@@ -2551,6 +2631,9 @@ function PrinterCard({
     }
   }, [activePrintName, needsPlateClear, status?.cover_url]);
   const plateStatus = (() => {
+    // Connected-only because the pill's only render site sits inside the live-status
+    // panel. For a powered-down printer the plate-clear button itself carries the
+    // state — see the standalone slot below the status block (#2864).
     if (!requirePlateClear || !status?.connected) return null;
     if (isPrintingOrPaused) {
       return {
@@ -2747,6 +2830,26 @@ function PrinterCard({
     },
     onError: (error: Error) => showToast(error.message || t('printers.toast.failedToSendCommand'), 'error'),
   });
+
+  // Rendered from two places: inside the live-status block for a connected printer,
+  // and standalone below it for a powered-down one, whose status block isn't rendered
+  // at all (#2864). Shared so the two can't drift apart.
+  const expandedClearPlateButton = (
+    <button
+      type="button"
+      onClick={() => clearPlateMutation.mutate()}
+      disabled={clearPlateMutation.isPending || !hasPermission('printers:clear_plate')}
+      className="mt-2 w-full inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-100 dark:bg-yellow-500/20 border border-yellow-300 dark:border-yellow-400/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors text-xs font-medium disabled:opacity-50"
+      title={!hasPermission('printers:clear_plate') ? t('printers.permission.noControl') : t('printers.plateStatus.markCleared')}
+    >
+      {clearPlateMutation.isPending ? (
+        <Loader2 className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)] animate-spin" />
+      ) : (
+        <PlateClearedIcon className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
+      )}
+      {t('printers.plateStatus.markCleared')}
+    </button>
+  );
 
   const nozzleTemperatureMutation = useMutation({
     mutationFn: ({ target, nozzle }: { target: number; nozzle: number }) =>
@@ -3288,7 +3391,22 @@ function PrinterCard({
     }
   };
 
-  const canDrop = isConnected && status?.state !== 'RUNNING' && status?.state !== 'PAUSE' && hasPermission('printers:control');
+  // A dropped file always becomes a queue item, so a printer that is busy,
+  // offline or mid-drying is no reason to refuse the drop — it only means the
+  // item waits its turn instead of starting now (#2849). Rejecting RUNNING /
+  // PAUSE / disconnected sent people to the File Manager to do by hand exactly
+  // what this would have done for them.
+  //
+  // What remains is what the flow actually performs: upload the file, then
+  // create a queue item. It never touches printers:control, which is what this
+  // used to check — so someone holding that but neither of these had the file
+  // uploaded and then rejected by the queue, leaving it stranded. The Print
+  // button below has always checked this pair.
+  const canDrop = hasPermission('library:upload') && hasPermission('queue:create');
+
+  // Drives the wording alone. Shared with the PrintModal so the card's promise
+  // and the modal's own "will start later" toast cannot disagree.
+  const dropWouldQueue = !isPrinterCurrentlyDispatchable(status);
 
   const handleCardDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -3358,6 +3476,48 @@ function PrinterCard({
 
   const footerActionButtonClass = '!h-8 !min-h-8 !px-2 !py-0';
   const footerIconButtonClass = '!h-8 !min-h-8 !w-8 !px-0 !py-0';
+
+  // Opening a camera in a given mode, without touching which mode is remembered
+  // -- the split button's two halves want the same action but disagree about
+  // whether the choice was deliberate enough to keep.
+  const openCameraIn = (mode: CameraViewMode) => {
+    if (mode === 'embedded' && onOpenEmbeddedCamera) {
+      onOpenEmbeddedCamera(printer.id, printer.name);
+    } else {
+      openCameraWindow(printer.id);
+    }
+  };
+
+  // Picking a mode both opens the camera that way and makes it the mode the
+  // plain icon uses from now on. A menu that only changed a preference would
+  // leave the user with a second click to do the thing they already asked for.
+  const cameraViewModeMenuItems: ContextMenuItem[] = (
+    [
+      {
+        mode: 'window' as const,
+        icon: <ExternalLink className="w-4 h-4" />,
+        label: t('settings.newWindow'),
+        title: t('settings.cameraWindowDescription'),
+      },
+      {
+        mode: 'embedded' as const,
+        icon: <PictureInPicture2 className="w-4 h-4" />,
+        label: t('settings.embeddedOverlay'),
+        title: t('settings.cameraOverlayDescription'),
+      },
+    ]
+  ).map(({ mode, icon, label, title }) => ({
+    icon,
+    // The remembered mode is marked in the label itself: the icon slot already
+    // carries the mode's own icon, and a separate tick column would push both
+    // entries out of line with every other card menu.
+    label: mode === cameraViewMode ? `${label} ✓` : label,
+    title,
+    onClick: () => {
+      onSelectCameraViewMode?.(mode);
+      openCameraIn(mode);
+    },
+  }));
   const renderAmsSlotActions = ({
     amsId,
     slotId,
@@ -3601,12 +3761,18 @@ function PrinterCard({
             ) : canDrop ? (
               <>
                 <PrinterIcon className="w-8 h-8 mx-auto mb-2 text-bambu-green" />
-                <p className="text-sm font-medium text-bambu-green">{t('printers.dropToPrint', 'Drop to print')}</p>
+                <p className="text-sm font-medium text-bambu-green">
+                  {dropWouldQueue ? t('printers.dropToQueue') : t('printers.dropToPrint')}
+                </p>
               </>
             ) : (
               <>
                 <X className="w-8 h-8 mx-auto mb-2 text-red-600 dark:text-red-400" />
-                <p className="text-sm font-medium text-red-700 dark:text-red-400">{t('printers.cannotPrint', 'Printer busy')}</p>
+                <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                  {!hasPermission('library:upload')
+                    ? t('fileManager.noPermissionUpload')
+                    : t('fileManager.noPermissionAddToQueue')}
+                </p>
               </>
             )}
           </div>
@@ -4092,13 +4258,23 @@ function PrinterCard({
                   const coverUrl = isActivePrint ? status.cover_url : showRetainedPrint ? retainedPrintJob.coverUrl : null;
                   const progress = isActivePrint ? (status.progress || 0) : showRetainedPrint ? 100 : 0;
 
+                  // A running print always has at least one object, so a count of
+                  // zero means "not loaded", not "nothing to skip" — after a
+                  // restart mid-print the list is empty until something rebuilds
+                  // it. Treating that as nothing-to-skip disabled the only
+                  // control that opens the modal, and the modal's own fetch is
+                  // what rebuilds the list, so the print could never get it back.
+                  // Exactly one object is the real nothing-to-skip case.
+                  const objectCount = status.printable_objects_count ?? 0;
+                  const canSkipObjects = isActivePrint && objectCount !== 1 && hasPermission('printers:control');
+
                   return (
                     <div className="p-2 bg-bambu-dark rounded-[10px] relative overflow-hidden">
                       <button
                         onClick={() => setShowSkipObjectsModal(true)}
-                        disabled={!isActivePrint || (status.printable_objects_count ?? 0) < 2 || !hasPermission('printers:control')}
+                        disabled={!canSkipObjects}
                         className={`absolute top-2 right-2 p-1.5 rounded transition-colors z-10 ${
-                          isActivePrint && (status.printable_objects_count ?? 0) >= 2 && hasPermission('printers:control')
+                          canSkipObjects
                             ? 'text-bambu-gray hover:text-white hover:bg-white/10'
                             : 'text-bambu-gray/30 cursor-not-allowed'
                         }`}
@@ -4107,9 +4283,9 @@ function PrinterCard({
                             ? t('printers.permission.noControl')
                             : !isActivePrint
                               ? t('printers.skipObjects.onlyWhilePrinting')
-                              : (status.printable_objects_count ?? 0) >= 2
-                                ? t('printers.skipObjects.tooltip')
-                                : t('printers.skipObjects.requiresMultiple')
+                              : objectCount === 1
+                                ? t('printers.skipObjects.requiresMultiple')
+                                : t('printers.skipObjects.tooltip')
                         }
                       >
                         <SkipObjectsIcon className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
@@ -4552,22 +4728,7 @@ function PrinterCard({
               );
             })()}
 
-            {viewMode === 'expanded' && showClearPlateButton && (
-              <button
-                type="button"
-                onClick={() => clearPlateMutation.mutate()}
-                disabled={clearPlateMutation.isPending || !hasPermission('printers:clear_plate')}
-                className="mt-2 w-full inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-100 dark:bg-yellow-500/20 border border-yellow-300 dark:border-yellow-400/40 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors text-xs font-medium disabled:opacity-50"
-                title={!hasPermission('printers:clear_plate') ? t('printers.permission.noControl') : t('printers.plateStatus.markCleared')}
-              >
-                {clearPlateMutation.isPending ? (
-                  <Loader2 className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)] animate-spin" />
-                ) : (
-                  <PlateClearedIcon className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
-                )}
-                {t('printers.plateStatus.markCleared')}
-              </button>
-            )}
+            {viewMode === 'expanded' && showClearPlateButton && expandedClearPlateButton}
 
             {/* Controls */}
             {viewMode === 'expanded' && (() => {
@@ -5050,11 +5211,7 @@ function PrinterCard({
                   <div className="flex flex-wrap gap-2">
                     {/* Regular AMS units */}
                     {regularAms.map((ams) => {
-                      const mappedExtruderId = amsExtruderMap[String(ams.id)];
-                      const normalizedId = ams.id >= 128 ? ams.id - 128 : ams.id;
-                      const extruderId = mappedExtruderId !== undefined ? mappedExtruderId : normalizedId;
-                      const isLeftNozzle = extruderId === 1;
-                      const isRightNozzle = extruderId === 0;
+                      const sideBadge = amsSideBadge(ams.id, amsExtruderMap, amsSwitchInlet, ftsInstalled);
 
                       return (
                         <div key={ams.id} style={getAmsCardStyle(4)} className="min-w-0 p-2 bg-bambu-dark rounded-[10px] space-y-1">
@@ -5074,9 +5231,17 @@ function PrinterCard({
                                     {amsLabels?.[ams.id] || getAmsLabel(ams.id, ams.tray.length)}
                                   </span>
                                 </AmsNameHoverCard>
-                                {isDualNozzle && (isLeftNozzle || isRightNozzle) && (
-                                  <NozzleBadge side={isLeftNozzle ? 'L' : 'R'} />
-                                )}
+                                {sideBadge?.kind === 'inlet' ? (
+                                  <InletBadge
+                                    inlet={sideBadge.inlet}
+                                    title={t('printers.amsSwitchInletTooltip', {
+                                      inlet: sideBadge.inlet,
+                                      side: FTS_INLET_SIDE[sideBadge.inlet],
+                                    })}
+                                  />
+                                ) : isDualNozzle && sideBadge?.kind === 'nozzle' ? (
+                                  <NozzleBadge side={sideBadge.side} />
+                                ) : null}
                               </div>
                               {(ams.humidity != null || ams.temp != null) && (
                                 <div className="flex shrink-0 items-center gap-1.5">
@@ -5427,7 +5592,7 @@ function PrinterCard({
                                             trayColor: tray?.tray_color || undefined,
                                             traySubBrands: tray?.tray_sub_brands || undefined,
                                             trayInfoIdx: tray?.tray_info_idx || undefined,
-                                            extruderId: mappedExtruderId,
+                                            extruderId: resolveSlotExtruder(ams.id, tray?.id ?? 0, amsExtruderMap, amsSwitchInlet),
                                             caliIdx: tray?.cali_idx,
                                             savedPresetId: slotPreset?.preset_id,
                                           }),
@@ -5450,7 +5615,7 @@ function PrinterCard({
                                             amsId: ams.id,
                                             trayId: slotIdx,
                                             trayCount: ams.tray.length,
-                                            extruderId: mappedExtruderId,
+                                            extruderId: resolveSlotExtruder(ams.id, tray?.id ?? 0, amsExtruderMap, amsSwitchInlet),
                                           }),
                                         }}
                                         onAssignSpool={() => setAssignSpoolModal({
@@ -5478,11 +5643,7 @@ function PrinterCard({
                     })}
                     {/* HT AMS units */}
                     {htAms.map((ams) => {
-                      const mappedExtruderId = amsExtruderMap[String(ams.id)];
-                      const normalizedId = ams.id >= 128 ? ams.id - 128 : ams.id;
-                      const extruderId = mappedExtruderId !== undefined ? mappedExtruderId : normalizedId;
-                      const isLeftNozzle = extruderId === 1;
-                      const isRightNozzle = extruderId === 0;
+                      const sideBadge = amsSideBadge(ams.id, amsExtruderMap, amsSwitchInlet, ftsInstalled);
                       const tray = ams.tray[0];
                       const hasFillLevel = tray?.tray_type && tray.remain >= 0;
                       const isEmpty = !tray?.tray_type;
@@ -5644,9 +5805,17 @@ function PrinterCard({
                                     {amsLabels?.[ams.id] || getAmsLabel(ams.id, ams.tray.length)}
                                   </span>
                                 </AmsNameHoverCard>
-                                {isDualNozzle && (isLeftNozzle || isRightNozzle) && (
-                                  <NozzleBadge side={isLeftNozzle ? 'L' : 'R'} />
-                                )}
+                                {sideBadge?.kind === 'inlet' ? (
+                                  <InletBadge
+                                    inlet={sideBadge.inlet}
+                                    title={t('printers.amsSwitchInletTooltip', {
+                                      inlet: sideBadge.inlet,
+                                      side: FTS_INLET_SIDE[sideBadge.inlet],
+                                    })}
+                                  />
+                                ) : isDualNozzle && sideBadge?.kind === 'nozzle' ? (
+                                  <NozzleBadge side={sideBadge.side} />
+                                ) : null}
                               </div>
                               {/* Drying button for HT AMS */}
                               {(status.supports_drying || status.drying_screen_only) && (ams.module_type === 'n3f' || ams.module_type === 'n3s') && hasPermission('printers:control') && (
@@ -5810,7 +5979,7 @@ function PrinterCard({
                                         trayColor: tray?.tray_color || undefined,
                                         traySubBrands: tray?.tray_sub_brands || undefined,
                                         trayInfoIdx: tray?.tray_info_idx || undefined,
-                                        extruderId: mappedExtruderId,
+                                        extruderId: resolveSlotExtruder(ams.id, tray?.id ?? 0, amsExtruderMap, amsSwitchInlet),
                                         caliIdx: tray?.cali_idx,
                                         savedPresetId: slotPreset?.preset_id,
                                       }),
@@ -5833,7 +6002,7 @@ function PrinterCard({
                                         amsId: ams.id,
                                         trayId: htSlotId,
                                         trayCount: ams.tray.length,
-                                        extruderId: mappedExtruderId,
+                                        extruderId: resolveSlotExtruder(ams.id, tray?.id ?? 0, amsExtruderMap, amsSwitchInlet),
                                       }),
                                     }}
                                     onAssignSpool={() => setAssignSpoolModal({
@@ -6137,6 +6306,14 @@ function PrinterCard({
           </>
         )}
 
+        {/* Powered-down printer with a dirty plate: the status block above renders
+            nothing without a live connection, so the plate-clear control gets its own
+            slot here. Auto Power Off makes this the ordinary end-of-print state, and
+            the gate is Bambuddy-side — releasing it never touches the printer (#2864). */}
+        {printer.is_active !== false && !status?.connected && viewMode === 'expanded' && showClearPlateButton && (
+          expandedClearPlateButton
+        )}
+
         {/* Bottom block (power row + action bar). Wrapped together so the
             power row hugs the action bar at the card bottom instead of
             floating up when there's less filament content above. */}
@@ -6250,35 +6427,50 @@ function PrinterCard({
             <div className="flex items-center justify-between gap-2">
               {printerActionsMenu}
               <div className="flex items-center justify-end gap-2 flex-wrap">
-                {/* Camera Button */}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    if (cameraViewMode === 'embedded' && onOpenEmbeddedCamera) {
-                      onOpenEmbeddedCamera(printer.id, printer.name);
-                    } else {
-                      // Use saved window state or defaults
-                      const saved = localStorage.getItem('cameraWindowState');
-                      const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
-                      const features = [
-                        `width=${state.width}`,
-                        `height=${state.height}`,
-                        state.left !== undefined ? `left=${state.left}` : '',
-                        state.top !== undefined ? `top=${state.top}` : '',
-                        // No `noopener`: same-origin popup needs opener so the browser
-                        // copies sessionStorage (auth token) into the new window.
-                        'menubar=no,toolbar=no,location=no,status=no',
-                      ].filter(Boolean).join(',');
-                      window.open(`/camera/${printer.id}`, `camera-${printer.id}`, features);
-                    }
-                  }}
-                  disabled={!status?.connected || !hasPermission('camera:view')}
-                  title={!hasPermission('camera:view') ? t('printers.permission.noCamera') : (cameraViewMode === 'embedded' ? t('printers.openCameraOverlay') : t('printers.openCameraWindow'))}
-                  className={footerIconButtonClass}
-                >
-                  <Video className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
-                </Button>
+                {/* Camera split button: the icon opens whichever view was used
+                    last, the caret picks between the two and remembers it.
+                    Replaces the old Settings > General > Camera switch, which
+                    made choosing between an overlay and a window a trip to
+                    another page for something you decide per camera. */}
+                <div className="flex items-center flex-shrink-0">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openCameraIn(cameraViewMode)}
+                    disabled={!status?.connected || !hasPermission('camera:view')}
+                    title={!hasPermission('camera:view') ? t('printers.permission.noCamera') : (cameraViewMode === 'embedded' ? t('printers.openCameraOverlay') : t('printers.openCameraWindow'))}
+                    className={`${footerIconButtonClass} !rounded-r-none`}
+                  >
+                    <Video className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      // No open/close toggle: the menu's own outside-mousedown
+                      // handler has already dismissed it by the time this lands.
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setCameraMenuAnchor({ x: rect.left, y: rect.bottom + 4 });
+                    }}
+                    disabled={!status?.connected || !hasPermission('camera:view')}
+                    title={!hasPermission('camera:view') ? t('printers.permission.noCamera') : t('settings.cameraViewMode')}
+                    aria-label={t('settings.cameraViewMode')}
+                    // Not footerIconButtonClass plus an override: both widths
+                    // would carry !important and the stylesheet's own order,
+                    // not this one, would decide which won.
+                    className="!h-8 !min-h-8 !w-6 !px-0 !py-0 !rounded-l-none border-l border-bambu-dark"
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </div>
+                {cameraMenuAnchor && (
+                  <ContextMenu
+                    x={cameraMenuAnchor.x}
+                    y={cameraMenuAnchor.y}
+                    items={cameraViewModeMenuItems}
+                    onClose={() => setCameraMenuAnchor(null)}
+                  />
+                )}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -6289,24 +6481,27 @@ function PrinterCard({
                 >
                   <HardDrive className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
                 </Button>
-                {isConnected && status?.state !== 'RUNNING' && status?.state !== 'PAUSE' && (
-                  <Button
-                    size="sm"
-                    onClick={() => setShowUploadForPrint(true)}
-                    disabled={!hasPermission('library:upload') || !hasPermission('queue:create')}
-                    title={
-                      !hasPermission('library:upload')
-                        ? t('fileManager.noPermissionUpload')
-                        : !hasPermission('queue:create')
-                          ? t('fileManager.noPermissionAddToQueue')
-                          : t('common.print')
-                    }
-                    className={`${footerActionButtonClass} !bg-bambu-green hover:!bg-bambu-green/80 !text-white`}
-                  >
-                    <PrinterIcon className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
-                    {t('common.print')}
-                  </Button>
-                )}
+                {/* Shown whatever the printer is doing (#2849): this uploads a
+                    file and queues it, which a busy or offline printer is no
+                    reason to refuse -- it only means the item waits. Hiding it
+                    while the drop zone accepted the same file would have left
+                    the two routes into this flow disagreeing. */}
+                <Button
+                  size="sm"
+                  onClick={() => setShowUploadForPrint(true)}
+                  disabled={!hasPermission('library:upload') || !hasPermission('queue:create')}
+                  title={
+                    !hasPermission('library:upload')
+                      ? t('fileManager.noPermissionUpload')
+                      : !hasPermission('queue:create')
+                        ? t('fileManager.noPermissionAddToQueue')
+                        : t('common.print')
+                  }
+                  className={`${footerActionButtonClass} !bg-bambu-green hover:!bg-bambu-green/80 !text-white`}
+                >
+                  <PrinterIcon className="w-[var(--pc-i4,1rem)] h-[var(--pc-i4,1rem)]" />
+                  {t('common.print')}
+                </Button>
               </div>
             </div>
         </div>
@@ -6490,7 +6685,7 @@ function PrinterCard({
                         {/* Delete button */}
                         <button
                           onClick={() => handleDeleteRef(ref.index)}
-                          className="absolute top-1 right-1 p-0.5 bg-red-500/80 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 p-0.5 bg-red-500/80 rounded can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                           title={t('printers.plateDetection.deleteReference')}
                         >
                           <X className="w-[var(--pc-i3,0.75rem)] h-[var(--pc-i3,0.75rem)] text-white" />
@@ -8432,10 +8627,15 @@ export function PrintersPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
+  // Which way the camera buttons open a stream. Chosen per click from the
+  // button's own menu; null until this browser has made a choice, so the
+  // stored setting below can act as the default a fresh browser starts from.
+  const [chosenCameraViewMode, setChosenCameraViewMode] = useState<CameraViewMode | null>(
+    () => readStoredCameraViewMode()
+  );
   // Embedded camera viewer state - supports multiple simultaneous viewers
   // Persisted to localStorage so cameras reopen after navigation
   const [embeddedCameraPrinters, setEmbeddedCameraPrinters] = useState<Map<number, { id: number; name: string }>>(() => {
-    // Initialize from localStorage if camera_view_mode is embedded
     const saved = localStorage.getItem('openEmbeddedCameras');
     if (saved) {
       try {
@@ -8504,12 +8704,24 @@ export function PrintersPage() {
     return DRYING_PRESETS;
   }, [settings?.drying_presets]);
 
-  // Close embedded cameras if mode changes to 'window'
-  useEffect(() => {
-    if (settings?.camera_view_mode === 'window' && embeddedCameraPrinters.size > 0) {
-      setEmbeddedCameraPrinters(new Map());
+  // The local choice wins over the stored one: someone without settings:update
+  // cannot write their pick back, and a preference that silently reverted on
+  // the next render would be worse than none at all.
+  const cameraViewMode: CameraViewMode =
+    chosenCameraViewMode ?? (settings?.camera_view_mode === 'embedded' ? 'embedded' : 'window');
+
+  const selectCameraViewMode = useCallback((mode: CameraViewMode) => {
+    storeCameraViewMode(mode);
+    setChosenCameraViewMode(mode);
+    // Best effort, and only a default for other browsers -- the choice is
+    // already in effect here. Users below settings:update simply keep theirs
+    // locally, which is why the failure is logged rather than surfaced.
+    if (hasPermission('settings:update')) {
+      api.updateSettings({ camera_view_mode: mode })
+        .then(() => queryClient.invalidateQueries({ queryKey: ['ui-preferences'] }))
+        .catch((err) => console.warn('Could not save camera view mode as the default:', err));
     }
-  }, [settings?.camera_view_mode, embeddedCameraPrinters.size]);
+  }, [hasPermission, queryClient]);
 
   // Fetch all smart plugs to know which printers have them
   const { data: smartPlugs } = useQuery({
@@ -8712,12 +8924,15 @@ export function PrintersPage() {
     // Filter to only applicable printers based on cached state
     const applicableIds = ids.filter(id => {
       const status = queryClient.getQueryData<{ connected: boolean; state: string | null; hms_errors?: HMSError[] }>(['printerStatus', id]);
+      // clearPlate is checked before the connection filter: it only releases a
+      // Bambuddy-side gate, so it applies to a printer Auto Power Off has shut
+      // down — every other action here needs to reach the machine (#2864).
+      if (action === 'clearPlate') return !!(status as { awaiting_plate_clear?: boolean } | undefined)?.awaiting_plate_clear;
       if (!status?.connected) return false;
       switch (action) {
         case 'stop': return status.state === 'RUNNING' || status.state === 'PAUSE';
         case 'pause': return status.state === 'RUNNING';
         case 'resume': return status.state === 'PAUSE';
-        case 'clearPlate': return !!(status as { awaiting_plate_clear?: boolean }).awaiting_plate_clear;
         case 'clearHMS': return status.hms_errors && filterKnownHMSErrors(status.hms_errors).length > 0;
         default: return false;
       }
@@ -9407,20 +9622,12 @@ export function PrintersPage() {
           maxLive={camWallMaxLive}
           snapshotIntervalSec={camWallSnapshotSec}
           onTileClick={(id, name) => {
-            const cameraMode = settings?.camera_view_mode || 'window';
-            if (cameraMode === 'embedded') {
+            // A wall tile has no room for a split button, so it follows the
+            // mode the card buttons last chose.
+            if (cameraViewMode === 'embedded') {
               setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }));
             } else {
-              const saved = localStorage.getItem('cameraWindowState');
-              const state = saved ? JSON.parse(saved) : { width: 640, height: 400 };
-              const features = [
-                `width=${state.width}`,
-                `height=${state.height}`,
-                state.left !== undefined ? `left=${state.left}` : '',
-                state.top !== undefined ? `top=${state.top}` : '',
-                'menubar=no,toolbar=no,location=no,status=no',
-              ].filter(Boolean).join(',');
-              window.open(`/camera/${id}`, `camera-${id}`, features);
+              openCameraWindow(id);
             }
           }}
           statusMode={camWallStatusMode}
@@ -9514,8 +9721,9 @@ export function PrintersPage() {
                       spoolmanLoading={spoolmanSpoolsLoading || spoolmanAssignmentsLoading}
                       onUnassignSpoolmanSpool={(id) => unassignSpoolmanMutation.mutate(id)}
                       timeFormat={settings?.time_format || 'system'}
-                      cameraViewMode={settings?.camera_view_mode || 'window'}
+                      cameraViewMode={cameraViewMode}
                       onOpenEmbeddedCamera={(id, name) => setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }))}
+                      onSelectCameraViewMode={selectCameraViewMode}
                       checkPrinterFirmware={settings?.check_printer_firmware !== false}
                       dryingPresets={effectiveDryingPresets}
                       nozzleTempPresets={effectiveNozzleTempPresets}
@@ -9566,8 +9774,9 @@ export function PrintersPage() {
                 tempFair: Number(settings.ams_temp_fair) || 35,
               } : undefined}
               timeFormat={settings?.time_format || 'system'}
-              cameraViewMode={settings?.camera_view_mode || 'window'}
+              cameraViewMode={cameraViewMode}
               onOpenEmbeddedCamera={(id, name) => setEmbeddedCameraPrinters(prev => new Map(prev).set(id, { id, name }))}
+              onSelectCameraViewMode={selectCameraViewMode}
               checkPrinterFirmware={settings?.check_printer_firmware !== false}
               dryingPresets={effectiveDryingPresets}
               nozzleTempPresets={effectiveNozzleTempPresets}

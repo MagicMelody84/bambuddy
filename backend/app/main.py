@@ -84,7 +84,6 @@ from backend.app.core.config import APP_VERSION, settings as app_settings
 from backend.app.core.database import async_session, engine, init_db
 from backend.app.core.tasks import spawn_background_task
 from backend.app.core.websocket import ws_manager
-from backend.app.models.smart_plug import SmartPlug
 from backend.app.services import print_dispatch_context
 from backend.app.services.archive import ArchiveService, peek_plate_index_in_3mf, swap_plate_suffix
 from backend.app.services.archive_purge import archive_purge_service
@@ -93,12 +92,14 @@ from backend.app.services.bambu_ftp import (
     cache_3mf_download,
     clear_3mf_cache,
     download_file_async,
+    download_file_try_paths_async,
     ftps_handshake_blocked,
     get_cached_3mf,
     get_ftp_retry_settings,
     with_ftp_retry,
 )
 from backend.app.services.bambu_mqtt import PrinterState
+from backend.app.services.energy_plug import energy_plug_candidates, select_energy_reading
 from backend.app.services.github_backup import github_backup_service
 from backend.app.services.ha_sensor_manager import ha_sensor_manager
 from backend.app.services.homeassistant import homeassistant_service
@@ -111,7 +112,11 @@ from backend.app.services.notification_service import notification_service
 from backend.app.services.obico_detection import obico_detection_service
 from backend.app.services.print_cost_estimate import plate_scoped_run_estimate as _plate_scoped_run_estimate
 from backend.app.services.print_scheduler import scheduler as print_scheduler
-from backend.app.services.print_storage import external_storage_present, print_file_reachable_over_ftp
+from backend.app.services.print_storage import (
+    external_storage_present,
+    ftp_probe_paths,
+    print_file_reachable_over_ftp,
+)
 from backend.app.services.printer_manager import (
     init_printer_connections,
     parse_plate_id,
@@ -119,6 +124,7 @@ from backend.app.services.printer_manager import (
     printer_state_to_dict,
     resolve_plate_id,
 )
+from backend.app.services.slot_kprofile import find_slot_kprofile_for_extruder
 from backend.app.services.smart_plug_manager import smart_plug_manager
 from backend.app.services.spool_assignment_notifications import (
     notify_missing_spool_assignments_on_print_start,
@@ -130,6 +136,10 @@ from backend.app.services.spoolman_tracking import (
     store_print_data as _store_spoolman_print_data,
 )
 from backend.app.services.tasmota import tasmota_service
+from backend.app.utils.ams_drying import is_drying_active, temperature_alarm_suppressed
+from backend.app.utils.fts_routing import extruder_for_inlet, slot_extruder as resolve_slot_extruder
+from backend.app.utils.local_time import utcnow_naive
+from backend.app.utils.print_jobs import is_internal_printer_job
 
 
 # =============================================================================
@@ -893,21 +903,30 @@ async def _record_energy_start(archive, printer_id: int, db, *, context: str = "
     """
     _logger = logging.getLogger(__name__)
     try:
-        plug_result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-        plug = plug_result.scalar_one_or_none()
-        if not plug:
+        candidates = await energy_plug_candidates(db, printer_id)
+        if not candidates:
             _logger.info("[ENERGY] No smart plug for printer %s (archive %s)", printer_id, archive.id)
             return False
-        energy = await _get_plug_energy(plug, db)
-        if not energy or energy.get("total") is None:
-            _logger.warning("[ENERGY] No 'total' in energy response for archive %s", archive.id)
+        selected = await select_energy_reading(candidates, _get_plug_energy, db)
+        if selected is None:
+            # Naming the plugs matters here: with several linked to one printer
+            # this is the difference between "the meter is offline" and "you
+            # linked only accessories" (#2859).
+            _logger.warning(
+                "[ENERGY] No plug on printer %s reports a lifetime energy counter for archive %s (tried: %s)",
+                printer_id,
+                archive.id,
+                ", ".join(plug.name for plug in candidates),
+            )
             return False
+        plug, energy = selected
         archive.energy_start_kwh = float(energy["total"])
         await db.commit()
         _logger.info(
-            "[ENERGY] Recorded starting energy%s for archive %s: %s kWh",
+            "[ENERGY] Recorded starting energy%s for archive %s from plug '%s': %s kWh",
             f" ({context})" if context else "",
             archive.id,
+            plug.name,
             energy["total"],
         )
         return True
@@ -1483,13 +1502,24 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
         if state.raw_data
         else ()
     )
+    # Filament Track Switch: which inlet each AMS is bound to, and whether the
+    # accessory is fitted at all. Neither is in ams_tray_key (it is per-tray) nor
+    # in the AMS change-hash (tray fields only, and widening that would fire
+    # spurious Spoolman syncs), so without them a "Join IN-B" on the printer
+    # screen changed no key at all and the card's inlet badges sat stale until a
+    # reload. Like the filament-backup flag, these only move when someone
+    # reconfigures the machine, so they add no mid-print broadcast traffic.
+    fts_key = (
+        state.fila_switch.installed if state.fila_switch else False,
+        tuple(sorted(state.ams_switch_inlet.items())),
+    )
     status_key = (
         f"{state.connected}:{state.state}:{state.progress}:{state.layer_num}:"
         f"{nozzle_temp}:{bed_temp}:{nozzle_2_temp}:{chamber_temp}:"
         f"{state.stg_cur}:{bed_target}:{nozzle_target}:"
         f"{state.cooling_fan_speed}:{state.big_fan1_speed}:{state.big_fan2_speed}:"
         f"{state.chamber_light}:{state.active_extruder}:{state.tray_now}:{vt_tray_key}:"
-        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}"
+        f"{ams_dry_key}:{ams_tray_key}:{state.door_open}:{state.ams_filament_backup}:{fts_key}"
     )
 
     is_active_print = state.state in _ACTIVE_PRINT_STATES
@@ -1781,6 +1811,83 @@ async def on_printer_status_change(printer_id: int, state: PrinterState):
 def _is_bambu_uuid(tray_uuid: str) -> bool:
     """Check if a tray UUID looks like a valid Bambu Lab RFID UUID (non-empty, non-zero)."""
     return bool(tray_uuid) and tray_uuid not in ("", "0" * len(tray_uuid))
+
+
+async def on_fts_inlet_change(printer_id: int, ams_id: int, inlet: str):
+    """Re-point a moved AMS's K-profiles at the nozzle it now feeds.
+
+    K-profiles are per-nozzle and the printer's calibration table is numbered
+    per-nozzle, but a tray holds exactly one ``cali_idx``. Moving an AMS to the
+    switch's other inlet therefore silently invalidates every configured slot in
+    it: the index stays put and now resolves against the other nozzle's table.
+    Measured on the maintainer's H2C — one spool calibrated 0.018 on the left
+    and 0.020 on the right kept the left profile after the move, and a manual
+    RFID re-read only re-asserted the same wrong one.
+
+    Configuring a slot is a deliberate preparation step, so this re-selects
+    rather than re-configures: only the calibration binding moves, and only for
+    slots whose spool already has a stored profile for the new nozzle. A slot
+    Bambuddy knows nothing about is left exactly as the operator left it.
+    """
+    logger = logging.getLogger(__name__)
+
+    target_extruder = extruder_for_inlet(inlet)
+    if target_extruder is None:
+        return
+
+    client = printer_manager.get_client(printer_id)
+    state = printer_manager.get_status(printer_id)
+    if not client or not state or not state.raw_data:
+        return
+
+    nozzle_diameter = "0.4"
+    if state.nozzles and state.nozzles[0].nozzle_diameter:
+        nozzle_diameter = state.nozzles[0].nozzle_diameter
+
+    ams_raw = state.raw_data.get("ams")
+    ams_list = ams_raw.get("ams", []) if isinstance(ams_raw, dict) else ams_raw if isinstance(ams_raw, list) else []
+    unit = next((u for u in ams_list if str(u.get("id")) == str(ams_id)), None)
+    if not unit:
+        return
+
+    try:
+        async with async_session() as db:
+            for tray in unit.get("tray", []):
+                tray_id = int(tray.get("id", -1))
+                if tray_id < 0 or not tray.get("tray_type"):
+                    continue
+                current_idx = tray.get("cali_idx")
+
+                profile = await find_slot_kprofile_for_extruder(
+                    db, printer_id, ams_id, tray_id, target_extruder, nozzle_diameter
+                )
+                if profile is None or profile.cali_idx is None:
+                    continue
+                if current_idx == profile.cali_idx:
+                    continue  # Already on the right one.
+
+                logger.info(
+                    "[Printer %s] AMS %s slot %s moved to inlet %s (nozzle %s): "
+                    "re-selecting K-profile %s (cali_idx %s -> %s, K=%s)",
+                    printer_id,
+                    ams_id,
+                    tray_id,
+                    inlet,
+                    target_extruder,
+                    profile.name,
+                    current_idx,
+                    profile.cali_idx,
+                    profile.k_value,
+                )
+                client.extrusion_cali_sel(
+                    ams_id=ams_id,
+                    tray_id=tray_id,
+                    cali_idx=profile.cali_idx,
+                    filament_id=profile.filament_id or tray.get("tray_info_idx", "") or "",
+                    nozzle_diameter=nozzle_diameter,
+                )
+    except Exception as e:
+        logger.warning("[Printer %s] Could not re-apply K-profiles after inlet move: %s", printer_id, e)
 
 
 async def on_ams_change(printer_id: int, ams_data: list):
@@ -2158,12 +2265,12 @@ async def on_ams_change(printer_id: int, ams_data: list):
                                         nd = state.nozzles[0].nozzle_diameter
                                         if nd:
                                             nozzle_diameter = nd
-                                    slot_extruder: int | None = None
-                                    if state and state.ams_extruder_map:
-                                        if ams_id == 255:
-                                            slot_extruder = 1 - tray_id
-                                        else:
-                                            slot_extruder = state.ams_extruder_map.get(str(ams_id))
+                                    slot_extruder = resolve_slot_extruder(
+                                        ams_id,
+                                        tray_id,
+                                        state.ams_extruder_map if state else None,
+                                        state.ams_switch_inlet if state else None,
+                                    )
                                     # Prefer exact extruder match, fall back to
                                     # extruder-agnostic kp for the same printer +
                                     # nozzle. Avoids hard-skipping when the AMS is
@@ -2755,32 +2862,71 @@ async def _dispatch_user_print_email(
 def _load_objects_from_archive(archive, printer_id: int, logger) -> None:
     """Extract printable objects from an archive's 3MF file and store in printer state."""
     try:
-        from backend.app.services.archive import extract_printable_objects_from_3mf
+        from backend.app.services.archive import extract_printable_objects_from_archive
 
         client = printer_manager.get_client(printer_id)
         if not client:
             return
 
-        file_path = app_settings.base_dir / archive.file_path
-        if file_path.is_file() and str(file_path).endswith(".3mf"):
-            with open(file_path, "rb") as f:
-                threemf_data = f.read()
-            # Extract with positions for UI overlay, scoped to the plate that
-            # is printing — resolve_plate_id is the same resolver /cover uses,
-            # so the object list can't disagree with the thumbnail it is drawn
-            # over (#2522).
-            printable_objects, bbox_all = extract_printable_objects_from_3mf(
-                threemf_data,
-                plate_number=resolve_plate_id(client.state),
-                include_positions=True,
-            )
-            if printable_objects:
-                client.state.printable_objects = printable_objects
-                client.state.printable_objects_bbox_all = bbox_all
-                client.state.skipped_objects = []
-                logger.info("Loaded %s printable objects for printer %s", len(printable_objects), printer_id)
+        # Extract with positions for UI overlay, scoped to the plate that
+        # is printing — resolve_plate_id is the same resolver /cover uses,
+        # so the object list can't disagree with the thumbnail it is drawn
+        # over (#2522).
+        printable_objects, bbox_all = extract_printable_objects_from_archive(
+            app_settings.base_dir / archive.file_path,
+            plate_number=resolve_plate_id(client.state),
+        )
+        if printable_objects:
+            client.state.printable_objects = printable_objects
+            client.state.printable_objects_bbox_all = bbox_all
+            client.state.skipped_objects = []
+            logger.info("Loaded %s printable objects for printer %s", len(printable_objects), printer_id)
     except Exception as e:
         logger.debug("Failed to extract printable objects from archive: %s", e)
+
+
+async def _restore_printable_objects(printer_id: int, state, db, logger) -> None:
+    """Put the skip-objects list back after a restart mid-print.
+
+    ``PrinterState.printable_objects`` is in-memory only, and the only thing
+    that fills it is ``_load_objects_from_archive`` on the print-start paths —
+    which the #1304 guard suppresses on the first RUNNING push after startup.
+    Everything else this hook restores (the archive, the usage-tracking session,
+    the timelapse baseline) was already handled; the object list was not, so a
+    restart mid-print took skip-objects away for the rest of that print.
+
+    Nothing recovered it either: the printer card gates its Skip button on the
+    object count, and the one endpoint that can rebuild the list is reachable
+    only from the modal that button opens.
+
+    Anchored on ``subtask_id``, which the firmware mints per print, so a
+    leftover ``status="printing"`` row from a completion we never saw cannot
+    hand this print someone else's objects. Without one, nothing is loaded
+    rather than guessed — the reload path on ``GET /print/objects`` covers that
+    case on demand.
+    """
+    client = printer_manager.get_client(printer_id)
+    if client is None or client.state.printable_objects:
+        return
+
+    subtask_id = str(getattr(state, "subtask_id", "") or "").strip()
+    if subtask_id in ("", "0"):
+        return
+
+    from backend.app.models.archive import PrintArchive
+
+    archive = await db.scalar(
+        select(PrintArchive)
+        .where(
+            PrintArchive.printer_id == printer_id,
+            PrintArchive.status == "printing",
+            PrintArchive.subtask_id == subtask_id,
+        )
+        .order_by(PrintArchive.created_at.desc())
+        .limit(1)
+    )
+    if archive is not None:
+        _load_objects_from_archive(archive, printer_id, logger)
 
 
 async def on_print_start(printer_id: int, data: dict):
@@ -3044,12 +3190,21 @@ async def on_print_start(printer_id: int, data: dict):
 
         logger.info("[CALLBACK] Print start detected - filename: %s, subtask: %s", filename, subtask_name)
 
-        # Skip calibration prints — internal printer files should not be archived
-        # Bambu calibration gcode lives under /usr/ (e.g. /usr/etc/print/auto_cali_for_user.gcode)
-        if filename and filename.startswith("/usr/"):
-            logger.info("[CALLBACK] Skipping archive — internal printer file detected: %s", filename)
-            if not notification_sent:
-                await _send_print_start_notification(printer_id, data, logger=logger)
+        # Skip the printer's own jobs — a calibration run is not a user's print.
+        # See is_internal_printer_job for what counts and why both fields are
+        # tested; the pressure-advance line reports as a subtask name with no
+        # /usr/ path, which the old prefix-only test here missed entirely.
+        #
+        # No notification either. The event describes the printer calibrating
+        # itself, so "Print started" is as wrong as the archive was, and the
+        # matching completion is suppressed in on_print_complete for the same
+        # reason.
+        if is_internal_printer_job(filename, subtask_name):
+            logger.info(
+                "[CALLBACK] Skipping archive — internal printer job detected: filename=%s, subtask=%s",
+                filename,
+                subtask_name,
+            )
             return
 
         if not filename and not subtask_name:
@@ -3457,16 +3612,67 @@ async def on_print_start(printer_id: int, data: dict):
         # retries, then the directory walk) is ~110 connections that cannot
         # succeed. Skip it and say why (#2780).
         storage = print_file_reachable_over_ftp(printer_manager.get_status(printer_id))
-        if not storage.reachable and not downloaded_filename:
-            logger.info(
-                "Skipping the 3MF lookup for printer %s: %s — the print file is not on storage "
-                "Bambuddy can read over FTPS, so no path would find it",
-                printer_id,
-                storage.reason,
-            )
 
         # Get FTP retry settings
         ftp_retry_enabled, ftp_retry_count, ftp_retry_delay, ftp_timeout = await get_ftp_retry_settings()
+
+        # ...but "the printer put it on eMMC" is where it went, not whether we
+        # can read it. An H2D with a card in mirrors the job to /cache and
+        # serves it happily, and skipping on the URL alone cost that reporter
+        # every archive for two days (#2856). So ask the printer instead of
+        # guessing: the dispatch named the exact file, which is one connection
+        # walking five paths rather than the sweep's ~110. Only when the probe
+        # comes back empty does the verdict's reason stand.
+        if not storage.reachable and not downloaded_filename and storage.probe_filename:
+            if ftps_handshake_blocked(printer.ip_address):
+                logger.debug(
+                    "Not probing for %s on printer %s: its file service is not answering over TLS",
+                    storage.probe_filename,
+                    printer_id,
+                )
+            else:
+                probe_path = app_settings.archive_dir / "temp" / storage.probe_filename
+                probe_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    probe_hit = await download_file_try_paths_async(
+                        printer.ip_address,
+                        printer.access_code,
+                        ftp_probe_paths(storage.probe_filename),
+                        probe_path,
+                        socket_timeout=ftp_timeout,
+                        printer_model=printer.model,
+                    )
+                except Exception as e:
+                    logger.debug("3MF probe for %s failed: %s", storage.probe_filename, e)
+                    probe_hit = False
+                if probe_hit:
+                    downloaded_filename = storage.probe_filename
+                    temp_path = probe_path
+                    cache_3mf_download(printer_id, downloaded_filename, probe_path)
+                    # Naming the path, not just the file: a printer that keeps
+                    # uploads around for weeks can serve a same-named copy of an
+                    # earlier slice, and without the directory in the log that
+                    # mismatch is invisible rather than merely rare (#1820).
+                    logger.info(
+                        "Found %s at %s over FTPS for printer %s even though the printer reported %s",
+                        downloaded_filename,
+                        probe_hit,
+                        printer_id,
+                        storage.reason,
+                    )
+
+        if not storage.reachable and not downloaded_filename:
+            # Same opening words whether or not a probe ran, because that is
+            # the phrase support asks people to grep for — only the tail says
+            # which of the two happened.
+            logger.info(
+                "Skipping the 3MF lookup for printer %s: %s — %s",
+                printer_id,
+                storage.reason,
+                "no copy of it on external storage either"
+                if storage.probe_filename
+                else "the print file is not on storage Bambuddy can read over FTPS, so no path would find it",
+            )
 
         for try_filename in possible_names if not downloaded_filename and storage.reachable else []:
             if not try_filename.endswith(".3mf"):
@@ -4633,6 +4839,7 @@ async def on_print_running_observed(printer_id: int, data: dict):
                 logger.info("[RESTART] Restored active Bambuddy print for printer %s", printer_id)
 
             await _restore_usage_tracking_session(printer_id, state, db, logger)
+            await _restore_printable_objects(printer_id, state, db, logger)
 
         result = await db.execute(select(Printer).where(Printer.id == printer_id))
         printer = result.scalar_one_or_none()
@@ -5876,6 +6083,23 @@ async def on_print_complete(printer_id: int, data: dict):
     log_timing("Filament usage tracking")
 
     if not archive_id:
+        # The printer's own calibration run has no archive by design, so this
+        # arrives here every time one finishes. Returning before the no-archive
+        # notification is not just noise control: that path attributes an
+        # unmatched completion to any queue item this printer finished in the
+        # last five minutes, which for a calibration that runs alongside a real
+        # print means emailing its owner that their print is done, twice and
+        # early. Everything above this point has already run — the plate-clear
+        # gate, the queue reconciliation, the SD-card cleanup — so only the
+        # notification is skipped.
+        if is_internal_printer_job(filename, subtask_name):
+            logger.info(
+                "[CALLBACK] Internal printer job completed, no notification: filename=%s, subtask=%s",
+                filename,
+                subtask_name,
+            )
+            return
+
         logger.warning("Could not find archive for print complete: filename=%s, subtask=%s", filename, subtask_name)
 
         # Still send print-complete/failed/stopped notifications even without an archive.
@@ -6228,17 +6452,23 @@ async def on_print_complete(printer_id: int, data: dict):
                     logger.info("[ENERGY-BG] No start kWh recorded for archive %s", archive_id)
                     return
 
-                plug_result = await db.execute(select(SmartPlug).where(SmartPlug.printer_id == printer_id))
-                plug = plug_result.scalar_one_or_none()
-                if plug is None:
+                candidates = await energy_plug_candidates(db, printer_id)
+                if not candidates:
                     logger.info("[ENERGY-BG] No smart plug for printer %s", printer_id)
                     return
 
-                energy = await _get_plug_energy(plug, db)
-                logger.info("[ENERGY-BG] Energy response: %s", energy)
-                if not energy or energy.get("total") is None:
-                    logger.warning("[ENERGY-BG] No 'total' in energy response")
+                # Same ordering as the start reading, so the delta below is
+                # against the counter that produced `starting_kwh` (#2859).
+                selected = await select_energy_reading(candidates, _get_plug_energy, db)
+                if selected is None:
+                    logger.warning(
+                        "[ENERGY-BG] No plug on printer %s reports a lifetime energy counter (tried: %s)",
+                        printer_id,
+                        ", ".join(plug.name for plug in candidates),
+                    )
                     return
+                plug, energy = selected
+                logger.info("[ENERGY-BG] Energy response from plug '%s': %s", plug.name, energy)
 
                 energy_used = round(energy["total"] - starting_kwh, 4)
                 logger.info("[ENERGY-BG] Per-print energy: %s kWh", energy_used)
@@ -6847,6 +7077,86 @@ _ams_cleanup_counter = 0  # Track recordings to trigger periodic cleanup
 _ams_alarm_cooldown: dict[str, datetime] = {}
 AMS_ALARM_COOLDOWN_MINUTES = 60  # Don't send same alarm more than once per hour
 
+# Per-AMS "drying was live at" latch that suppresses the high-temperature alarm
+# through a cycle and the cool-down after it (#1802). Stored in the settings
+# table rather than alongside _ams_alarm_cooldown above, because a restart
+# partway through a cool-down would otherwise resume alarming about heat the
+# user asked for — the same internal-timestamp-row pattern as
+# support.py's debug_logging_enabled_at.
+AMS_DRYING_LATCH_KEY = "ams_drying_alarm_latch"
+
+# Upper bound on that suppression. The latch normally clears as soon as the unit
+# reads at or below the threshold; see utils.ams_drying for why this cap only
+# matters when it never does.
+AMS_DRYING_GRACE_MINUTES = 120
+
+
+async def _load_ams_drying_latch(db) -> dict[str, datetime]:
+    """Read the persisted per-AMS drying latch, dropping entries out of window.
+
+    Anything older than the grace cap would expire on its next visit anyway, so
+    discarding it here costs nothing and stops rows for deleted printers from
+    accumulating.
+
+    Stamps ahead of now get two defences, because a box whose clock jumps
+    backwards (a Pi with no RTC coming up before NTP) writes them: wildly future
+    ones are discarded outright, and the rest are clamped to now. Without the
+    clamp the cap would measure from a moment that has not happened yet and hold
+    the alarm quiet for the skew on top of the cap. One unnecessary notification
+    after a clock jump is a far better failure than an alarm silently disabled
+    for hours.
+    """
+    from backend.app.models.settings import Settings
+
+    result = await db.execute(select(Settings).where(Settings.key == AMS_DRYING_LATCH_KEY))
+    setting = result.scalar_one_or_none()
+    if not setting or not setting.value:
+        return {}
+    try:
+        raw = json.loads(setting.value)
+    except (ValueError, TypeError):
+        return {}  # Corrupted row → no latch, alarms behave as they did before
+    if not isinstance(raw, dict):
+        return {}
+
+    now = datetime.now(timezone.utc)
+    window = timedelta(minutes=AMS_DRYING_GRACE_MINUTES)
+    latch: dict[str, datetime] = {}
+    for key, value in raw.items():
+        try:
+            stamp = datetime.fromisoformat(str(value))
+        except (ValueError, TypeError):
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        if not (now - window <= stamp <= now + window):
+            continue
+        # Nothing may sit in the future: suppression is measured as now minus
+        # the stamp, so a stamp ahead of now would extend it by the skew on top
+        # of the cap. Clamping the survivors keeps the cap an actual cap.
+        latch[str(key)] = min(stamp, now)
+    return latch
+
+
+async def _save_ams_drying_latch(db, latch: dict[str, datetime]) -> None:
+    """Persist the latch, writing only when it actually changed.
+
+    Adds the session change but does not commit — the caller's own commit
+    carries it, so the latch lands in the same transaction as the sensor rows
+    that produced it.
+    """
+    from backend.app.models.settings import Settings
+
+    payload = json.dumps({key: stamp.isoformat() for key, stamp in sorted(latch.items())})
+    result = await db.execute(select(Settings).where(Settings.key == AMS_DRYING_LATCH_KEY))
+    setting = result.scalar_one_or_none()
+    if setting is None:
+        # Don't create the row on installs that never dry anything.
+        if payload != "{}":
+            db.add(Settings(key=AMS_DRYING_LATCH_KEY, value=payload))
+    elif setting.value != payload:
+        setting.value = payload
+
 
 def _ams_has_filament(ams_data: dict) -> bool:
     """True if this AMS unit has at least one tray slot holding filament.
@@ -6934,6 +7244,11 @@ async def record_ams_history():
                                     continue
                     except (ValueError, TypeError):
                         pass  # Invalid JSON → no overrides, fall through to global threshold
+
+                # Per-AMS drying latch (#1802), loaded once per pass and written
+                # back below only if a unit changed it.
+                drying_latch = await _load_ams_drying_latch(db)
+                drying_latch_before = dict(drying_latch)
 
                 recorded_count = 0
                 for printer in printers:
@@ -7052,8 +7367,30 @@ async def record_ams_history():
                                 except Exception as e:
                                     logger.warning("Failed to send humidity alarm: %s", e)
 
+                        # A drying cycle heats the unit far past ams_temp_fair on
+                        # purpose — 45 C for PLA, 65 C for PETG, 85 C on an
+                        # AMS-HT, against a 35 C default — so the alarm fired
+                        # once an hour for the whole cycle and kept firing while
+                        # the unit cooled back down (#1802). Latch on the
+                        # firmware's own drying state and hold until the reading
+                        # returns to normal. Humidity is deliberately left alone:
+                        # it falls during drying, which is the whole point.
+                        latch_key = f"{printer.id}:{ams_id}"
+                        suppress_temp_alarm, new_latch = temperature_alarm_suppressed(
+                            drying_active=is_drying_active(ams_data),
+                            temperature=temperature,
+                            threshold=temp_threshold,
+                            latched_at=drying_latch.get(latch_key),
+                            now=datetime.now(timezone.utc),
+                            grace_minutes=AMS_DRYING_GRACE_MINUTES,
+                        )
+                        if new_latch is None:
+                            drying_latch.pop(latch_key, None)
+                        else:
+                            drying_latch[latch_key] = new_latch
+
                         # Check temperature alarm (only if above threshold)
-                        if temperature is not None and temperature > temp_threshold:
+                        if temperature is not None and temperature > temp_threshold and not suppress_temp_alarm:
                             cooldown_key = f"{printer.id}:{ams_id}:temperature"
                             last_alarm = _ams_alarm_cooldown.get(cooldown_key)
                             now = datetime.now(timezone.utc)
@@ -7078,6 +7415,9 @@ async def record_ams_history():
                                 except Exception as e:
                                     logger.warning("Failed to send temperature alarm: %s", e)
 
+                if drying_latch != drying_latch_before:
+                    await _save_ams_drying_latch(db, drying_latch)
+
                 await db.commit()
                 if recorded_count > 0:
                     logger.info("Recorded %s AMS sensor history entries", recorded_count)
@@ -7094,7 +7434,7 @@ async def record_ams_history():
                     setting = result.scalar_one_or_none()
                     retention_days = int(setting.value) if setting else AMS_HISTORY_RETENTION_DAYS
 
-                    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+                    cutoff = utcnow_naive() - timedelta(days=retention_days)
                     result = await db.execute(delete(AMSSensorHistory).where(AMSSensorHistory.recorded_at < cutoff))
                     await db.commit()
                     if result.rowcount > 0:
@@ -7220,7 +7560,7 @@ async def record_printer_sensor_history():
                     setting = result.scalar_one_or_none()
                     retention_days = int(setting.value) if setting else PRINTER_SENSOR_HISTORY_RETENTION_DAYS
 
-                    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+                    cutoff = utcnow_naive() - timedelta(days=retention_days)
                     cleanup = await db.execute(
                         delete(PrinterSensorHistory).where(PrinterSensorHistory.recorded_at < cutoff)
                     )
@@ -7810,6 +8150,7 @@ async def lifespan(app: FastAPI):
     printer_manager.set_print_running_observed_callback(on_print_running_observed)
     printer_manager.set_finish_photo_moment_callback(on_finish_photo_moment)
     printer_manager.set_ams_change_callback(on_ams_change)
+    printer_manager.set_fts_inlet_change_callback(on_fts_inlet_change)
 
     # Rehydrate persisted awaiting-plate-clear gate (#961) so prompts survive restarts
     await printer_manager.load_awaiting_plate_clear_from_db()
