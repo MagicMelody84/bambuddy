@@ -4316,6 +4316,9 @@ export default {
     fromFileHint: 'Der Designer hat dies in der Quelldatei geändert. Wert: {{value}}.',
     fromFilePrinterCoupled: 'Drucker des Designers',
     fromFilePrinterCoupledHint: 'Auf den Drucker abgestimmt, für den diese Datei erstellt wurde – auf Ihrem kann der Wert falsch oder außerhalb des Bereichs sein.',
+    fromFileOverridesPreset: 'überschreibt Preset',
+    fromFileOverridesPresetHint:
+      'Die Datei setzt hier {{value}}, das gewählte Preset verwendet {{preset}}. Nur aktivieren, wenn die Datei Vorrang haben soll.',
     useFromFile: 'Wert aus der Quelldatei für {{option}} verwenden',
     otherFromFile: 'Weitere Einstellungen aus dieser Datei',
     loading: 'Slicer-Einstellungen werden geladen…',
@@ -5315,6 +5318,9 @@ export default {
     noProject: 'Kein Projekt',
     itemsPrinted: 'Gedruckte Teile',
     itemsPrintedHelp: 'Anzahl der in diesem Druckauftrag produzierten Teile',
+    filamentUsed: 'Verbrauchtes Filament (g)',
+    filamentUsedPlaceholder: 'z. B. 46.16',
+    filamentUsedHelp: 'Von Hand eintragen, wenn ein Druck ohne 3MF archiviert wurde, damit er in die Filament-Summen eingeht. Beim erneuten Einlesen eines Archivs mit 3MF wird der Wert wieder aus der Datei übernommen.',
     notes: 'Notizen',
     notesPlaceholder: 'Notizen zu diesem Druck hinzufügen...',
     externalLink: 'Externer Link',
@@ -5741,11 +5747,11 @@ export default {
   locationHaSensors: {
     sectionTitle: 'Home-Assistant-Sensoren (Lagerorte)',
     sectionDescription:
-      'Binde Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an deine Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
+      'Binden Sie Home-Assistant-Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren an Ihre Lagerorte, um Live-Werte auf der Filament-Karte und in der Tabelle anzuzeigen. Pro Lagerort ist nur ein Sensor je Kategorie möglich.',
     add: 'Sensor hinzufügen',
     addTitle: 'Home-Assistant-Sensor hinzufügen',
     editTitle: 'Home-Assistant-Sensor bearbeiten',
-    empty: 'Noch keine Sensoren. Verknüpfe einen Temperatur- oder Feuchtigkeitssensor aus Home Assistant, um ihn auf der Filament-Karte anzuzeigen.',
+    empty: 'Noch keine Sensoren. Verknüpfen Sie einen Temperatur- oder Feuchtigkeitssensor aus Home Assistant, um ihn auf der Filament-Karte anzuzeigen.',
     unknownLocation: 'Unbekannter Lagerort',
     location: 'Lagerort',
     showOnCard: 'Auf Filament-Karte anzeigen',
@@ -5757,9 +5763,10 @@ export default {
     },
     autoAdd: {
       confirmTitle: 'Auch die anderen Sensoren hinzufügen?',
-      confirmMessage: 'Bambuddy hat für diesen Lagerort auch weitere Sensoren gefunden. Wähle aus, welche zusätzlich hinzugefügt werden sollen.',
+      confirmMessage: 'Bambuddy hat für diesen Lagerort auch weitere Sensoren gefunden. Wählen Sie aus, welche zusätzlich hinzugefügt werden sollen.',
       added: 'Zusätzlich hinzugefügt: {{names}}',
       noneFound: 'Keine passenden Temperatur-, Luftfeuchtigkeits- oder Batteriesensoren für diesen Lagerort gefunden.',
+      onlyThisOne: 'Nur dieser',
     },
     options: {
       buttonLabel: 'Sensor-Optionen',
@@ -5798,7 +5805,7 @@ export default {
     },
     currentlyBound: 'Aktuell gebunden: {{entity}}',
     error: {
-      locationRequired: 'Wähle einen Lagerort',
+      locationRequired: 'Wählen Sie einen Lagerort',
     },
     toast: {
       created: 'Sensor hinzugefügt',
@@ -6123,8 +6130,10 @@ export default {
     notificationEvents: 'Benachrichtigungsereignisse',
     progressPercent: '(25 %, 50 %, 75 %)',
     bedCooledAfterPrint: '(nach Druckabschluss)',
-    haSensorAlert: 'Sensor-Alarm',
+    haSensorAlert: 'Drucker-Sensor-Alarm',
     haSensorAlertDescription: '(ein verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',
+    locationHaSensorAlert: 'Lagerort-Sensor-Alarm',
+    locationHaSensorAlertDescription: '(ein mit einem Lagerort verknüpfter Home-Assistant-Sensor braucht Aufmerksamkeit)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy-Priorität',

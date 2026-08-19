@@ -161,22 +161,22 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   };
 
   const persistDefaults = async () => {
-    saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
-    saveLocationSensorColorizeValues(colorizeValues);
-    saveLocationSensorAlertAboveColor(aboveColor);
-    saveLocationSensorAlertBelowColor(belowColor);
-    saveLocationSensorAlertOptimalColor(optimalColor);
-
-    // Only touch the server when the interval actually changed. It is the
-    // one field here that needs SETTINGS_UPDATE (admin); the rest are
-    // localStorage-only, so a non-admin who leaves the interval alone can
-    // still save their colour/threshold preferences without ever hitting a
-    // permission check.
+    // Server call first: only touch the server when the interval actually
+    // changed (the one field here that needs SETTINGS_UPDATE/admin), and do
+    // it before writing anything to localStorage. A failed PATCH must leave
+    // the six local preferences below untouched, so the error toast that
+    // follows is true — nothing was saved, not "half of it was".
     const clampedInterval = Math.max(MIN_POLL_INTERVAL, pollInterval);
     if (appSettings && clampedInterval !== appSettings.location_sensor_poll_interval) {
       await api.updateSettings({ location_sensor_poll_interval: clampedInterval });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     }
+
+    saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
+    saveLocationSensorColorizeValues(colorizeValues);
+    saveLocationSensorAlertAboveColor(aboveColor);
+    saveLocationSensorAlertBelowColor(belowColor);
+    saveLocationSensorAlertOptimalColor(optimalColor);
   };
 
   const saveMutation = useMutation({
@@ -232,6 +232,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   });
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
         className="bg-bambu-dark-secondary rounded-xl border border-bambu-dark-tertiary w-full max-w-lg max-h-[90vh] overflow-y-auto"
@@ -376,19 +377,20 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
           </div>
         </form>
       </div>
-
-      {showResetConfirm && (
-        <ConfirmModal
-          title={t('locationHaSensors.options.resetConfirm.title')}
-          message={t('locationHaSensors.options.resetConfirm.message')}
-          confirmText={t('locationHaSensors.options.reset')}
-          variant="danger"
-          overlayZIndex="z-[60]"
-          isLoading={resetMutation.isPending}
-          onConfirm={() => resetMutation.mutate()}
-          onCancel={() => setShowResetConfirm(false)}
-        />
-      )}
     </div>
+
+    {showResetConfirm && (
+      <ConfirmModal
+        title={t('locationHaSensors.options.resetConfirm.title')}
+        message={t('locationHaSensors.options.resetConfirm.message')}
+        confirmText={t('locationHaSensors.options.reset')}
+        variant="danger"
+        overlayZIndex="z-[60]"
+        isLoading={resetMutation.isPending}
+        onConfirm={() => resetMutation.mutate()}
+        onCancel={() => setShowResetConfirm(false)}
+      />
+    )}
+    </>
   );
 }

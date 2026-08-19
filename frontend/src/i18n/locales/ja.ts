@@ -4316,6 +4316,9 @@ export default {
     fromFileHint: 'この項目は元ファイルで設計者が変更しています。値は {{value}} です。',
     fromFilePrinterCoupled: '設計者のプリンター',
     fromFilePrinterCoupledHint: 'このファイルが設計されたプリンター向けの値です。お使いのプリンターでは不適切または範囲外になる場合があります。',
+    fromFileOverridesPreset: 'プリセットを上書き',
+    fromFileOverridesPresetHint:
+      'ファイルはこれを {{value}} に設定していますが、選択したプリセットは {{preset}} です。ファイルを優先する場合のみチェックしてください。',
     useFromFile: '{{option}} に元ファイルの値を使用する',
     otherFromFile: 'このファイルのその他の設定',
     loading: 'スライサー設定を読み込んでいます…',
@@ -5316,6 +5319,9 @@ export default {
     noProject: 'プロジェクトなし',
     itemsPrinted: '印刷数',
     itemsPrintedHelp: 'この印刷ジョブで製造したアイテム数',
+    filamentUsed: '使用フィラメント (g)',
+    filamentUsedPlaceholder: '例: 46.16',
+    filamentUsedHelp: '3MF なしでアーカイブされた印刷は、手入力するとフィラメント合計に反映されます。3MF があるアーカイブを再スキャンすると、この値はファイルから読み直されます。',
     notes: 'メモ',
     notesPlaceholder: 'この印刷についてメモを追加...',
     externalLink: '外部リンク',
@@ -5761,6 +5767,7 @@ export default {
       confirmMessage: 'Bambuddy がこの保管場所の他のセンサーも見つけました。追加するものを選んでください。',
       added: '追加で連携しました: {{names}}',
       noneFound: 'この保管場所に一致する温度・湿度・バッテリーセンサーが見つかりませんでした。',
+      onlyThisOne: 'これだけ',
     },
     options: {
       buttonLabel: 'センサーオプション',
@@ -6124,8 +6131,10 @@ export default {
     notificationEvents: '通知イベント',
     progressPercent: '（25%、50%、75%）',
     bedCooledAfterPrint: '（印刷完了後）',
-    haSensorAlert: 'センサーアラート',
+    haSensorAlert: 'プリンターセンサーアラート',
     haSensorAlertDescription: '（連携した Home Assistant センサーに注意が必要です）',
+    locationHaSensorAlert: '保管場所センサーアラート',
+    locationHaSensorAlertDescription: '（保管場所に連携した Home Assistant センサーに注意が必要です）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 優先度',

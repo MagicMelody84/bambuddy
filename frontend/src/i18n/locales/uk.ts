@@ -4349,6 +4349,9 @@ export default {
     fromFileHint: 'Автор моделі змінив цей параметр у вихідному файлі. Значення: {{value}}.',
     fromFilePrinterCoupled: 'принтер автора',
     fromFilePrinterCoupledHint: 'Підібрано під принтер, для якого створено файл, — на вашому значення може бути хибним або поза діапазоном.',
+    fromFileOverridesPreset: 'перевизначає пресет',
+    fromFileOverridesPresetHint:
+      'У файлі задано {{value}}, а вибраний пресет використовує {{preset}}. Позначайте, лише якщо перевагу має файл.',
     useFromFile: 'Використовувати значення з вихідного файлу для «{{option}}»',
     otherFromFile: 'Інші параметри з цього файлу',
     loading: 'Завантаження налаштувань слайсера…',
@@ -5358,6 +5361,9 @@ export default {
     noProject: "Жодного проєкту",
     itemsPrinted: "Надруковано об’єктів",
     itemsPrintedHelp: "Кількість елементів, виготовлених у цьому завданні друку",
+    filamentUsed: "Витрачений філамент (г)",
+    filamentUsedPlaceholder: "напр. 46.16",
+    filamentUsedHelp: "Вкажіть вручну, якщо друк заархівовано без 3MF — тоді він потрапить до підсумків з філаменту. Повторне сканування архіву, який має 3MF, зчитує значення з файлу.",
     notes: "Примітки",
     notesPlaceholder: "Додайте примітки щодо цього друку...",
     externalLink: "Зовнішнє посилання",
@@ -5803,6 +5809,7 @@ export default {
       confirmMessage: "Bambuddy також знайшов інші датчики для цього місця. Виберіть, які додати.",
       added: "Також додано: {{names}}",
       noneFound: "Відповідних датчиків температури, вологості чи заряду батареї для цього місця не знайдено.",
+      onlyThisOne: "Лише цей",
     },
     options: {
       buttonLabel: "Параметри датчиків",
@@ -6166,8 +6173,10 @@ export default {
     notificationEvents: "Події сповіщень",
     progressPercent: "(25%, 50%, 75%)",
     bedCooledAfterPrint: "(після завершення друку)",
-    haSensorAlert: "Сповіщення датчика",
+    haSensorAlert: "Сповіщення датчика принтера",
     haSensorAlertDescription: "(пов'язаний датчик Home Assistant потребує уваги)",
+    locationHaSensorAlert: "Сповіщення датчика місця зберігання",
+    locationHaSensorAlertDescription: "(датчик Home Assistant, пов'язаний з місцем зберігання, потребує уваги)",
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: "Пріоритет ntfy",

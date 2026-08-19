@@ -191,7 +191,6 @@ class LocationHASensorManager:
             location = await db.get(Location, sensor.location_id)
             try:
                 await notification_service.on_location_ha_sensor_alert(
-                    location_id=sensor.location_id,
                     location_name=location.name if location else "Unknown",
                     sensor_name=sensor.name,
                     state=describe_state(sensor, reading),

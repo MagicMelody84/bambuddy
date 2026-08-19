@@ -4304,6 +4304,9 @@ export default {
     fromFileHint: '设计者在源文件中修改了此项，其值为 {{value}}。',
     fromFilePrinterCoupled: '设计者的打印机',
     fromFilePrinterCoupledHint: '针对该文件设计时所用的打印机调校，在你的打印机上可能不正确或超出范围。',
+    fromFileOverridesPreset: '覆盖预设',
+    fromFileOverridesPresetHint:
+      '文件将其设为 {{value}}，而所选预设使用 {{preset}}。仅当应以文件为准时才勾选。',
     useFromFile: '对 {{option}} 使用源文件中的值',
     otherFromFile: '此文件中的其他设置',
     loading: '正在加载切片设置…',
@@ -5304,6 +5307,9 @@ export default {
     noProject: '无项目',
     itemsPrinted: '打印数量',
     itemsPrintedHelp: '此打印任务中生产的物品数量',
+    filamentUsed: '已用耗材 (g)',
+    filamentUsedPlaceholder: '例如 46.16',
+    filamentUsedHelp: '当打印任务在没有 3MF 的情况下归档时，可手动填写，使其仍计入耗材总量。重新扫描带有 3MF 的归档时，该数值会从文件中重新读取。',
     notes: '备注',
     notesPlaceholder: '添加关于此打印的备注...',
     externalLink: '外部链接',
@@ -5748,6 +5754,7 @@ export default {
       confirmMessage: 'Bambuddy 还为此位置找到了其他传感器。请选择要一并添加的传感器。',
       added: '已同时添加：{{names}}',
       noneFound: '未找到该位置匹配的温度、湿度或电池传感器。',
+      onlyThisOne: '仅此一个',
     },
     options: {
       buttonLabel: '传感器选项',
@@ -6111,8 +6118,10 @@ export default {
     notificationEvents: '通知事件',
     progressPercent: '（25%、50%、75%）',
     bedCooledAfterPrint: '（打印完成后）',
-    haSensorAlert: '传感器警报',
+    haSensorAlert: '打印机传感器警报',
     haSensorAlertDescription: '（已绑定的 Home Assistant 传感器需要关注）',
+    locationHaSensorAlert: '存放位置传感器警报',
+    locationHaSensorAlertDescription: '（绑定到存放位置的 Home Assistant 传感器需要关注）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 优先级',

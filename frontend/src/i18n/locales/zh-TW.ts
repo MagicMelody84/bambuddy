@@ -4304,6 +4304,9 @@ export default {
     fromFileHint: '設計者在來源檔案中修改了此項，其值為 {{value}}。',
     fromFilePrinterCoupled: '設計者的印表機',
     fromFilePrinterCoupledHint: '針對該檔案設計時所用的印表機調校，在你的印表機上可能不正確或超出範圍。',
+    fromFileOverridesPreset: '覆寫預設',
+    fromFileOverridesPresetHint:
+      '檔案將其設為 {{value}}，而所選預設使用 {{preset}}。僅在應以檔案為準時才勾選。',
     useFromFile: '對 {{option}} 使用來源檔案中的值',
     otherFromFile: '此檔案中的其他設定',
     loading: '正在載入切片設定…',
@@ -5304,6 +5307,9 @@ export default {
     noProject: '無專案',
     itemsPrinted: '列印數量',
     itemsPrintedHelp: '此列印任務中生產的物品數量',
+    filamentUsed: '已用耗材 (g)',
+    filamentUsedPlaceholder: '例如 46.16',
+    filamentUsedHelp: '當列印工作在沒有 3MF 的情況下封存時，可手動填寫，使其仍計入耗材總量。重新掃描具有 3MF 的封存項目時，此數值會從檔案重新讀取。',
     notes: '備註',
     notesPlaceholder: '新增關於此列印的備註...',
     externalLink: '外部連結',
@@ -5748,6 +5754,7 @@ export default {
       confirmMessage: 'Bambuddy 也為此位置找到了其他感測器。請選擇要一併新增的感測器。',
       added: '已同時新增：{{names}}',
       noneFound: '未找到該位置相符的溫度、濕度或電池感測器。',
+      onlyThisOne: '僅此一個',
     },
     options: {
       buttonLabel: '感測器選項',
@@ -6111,8 +6118,10 @@ export default {
     notificationEvents: '通知事件',
     progressPercent: '（25%、50%、75%）',
     bedCooledAfterPrint: '（列印完成後）',
-    haSensorAlert: '感測器警報',
+    haSensorAlert: '印表機感測器警報',
     haSensorAlertDescription: '（已綁定的 Home Assistant 感測器需要注意）',
+    locationHaSensorAlert: '存放位置感測器警報',
+    locationHaSensorAlertDescription: '（綁定至存放位置的 Home Assistant 感測器需要注意）',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy 優先級',

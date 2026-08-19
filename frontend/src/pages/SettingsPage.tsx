@@ -12,14 +12,11 @@ import { PRESET_CATEGORIES, parsePresetTriple } from '../utils/temperatureFanPre
 import { CALIBRATION_MODES, CALIBRATION_MODE_ACTIVE, CALIBRATION_MODE_INACTIVE } from '../utils/calibrationMode';
 import { inventoryLocationsQueryKey } from '../utils/inventoryQueries';
 import {
-  loadLocationSensorAlertAboveColor,
-  loadLocationSensorAlertBelowColor,
-  loadLocationSensorAlertOptimalColor,
-  loadLocationSensorColorizeValues,
   locationSensorReadingAlertStatus,
   locationSensorValueColorClass,
+  useLocationSensorColorPrefs,
 } from '../utils/locationSensorDefaults';
-import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
+import { describeHASensorReading, iconForHASensor } from '../utils/haSensorDisplay';
 import { PreheatFilamentTargetsEditor } from '../components/PreheatFilamentTargetsEditor';
 import type { APIKey, AppSettings, AppSettingsUpdate, PrinterHASensor, LocationHASensor, LocationHASensorReading, SmartPlug, SmartPlugStatus, NotificationProvider, NotificationTemplate, UpdateStatus, GitHubBackupStatus, CloudAuthStatus, UserCreate, UserUpdate, UserResponse, StorageUsageResponse, CalibrationMode } from '../api/client';
 import { Card, CardContent, CardDensityProvider, CardHeader } from '../components/Card';
@@ -196,15 +193,7 @@ function describeLocationSensorValue(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string | null {
   if (!reading) return null;
-  if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
-  if (reading.kind === 'numeric') {
-    if (reading.value === null) return reading.state;
-    const formatted = reading.value.toFixed(2);
-    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
-  }
-  const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
-  const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
-  return t(`haSensors.states.${key}`, { defaultValue: key });
+  return describeHASensorReading(reading, t, { decimals: 2 });
 }
 
 export function SettingsPage() {
@@ -236,14 +225,12 @@ export function SettingsPage() {
   const [showLocationHASensorModal, setShowLocationHASensorModal] = useState(false);
   const [editingLocationHASensor, setEditingLocationHASensor] = useState<LocationHASensor | null>(null);
   const [showLocationSensorOptionsModal, setShowLocationSensorOptionsModal] = useState(false);
-  const [colorizeLocationSensorValues, setColorizeLocationSensorValues] = useState(() =>
-    loadLocationSensorColorizeValues()
-  );
-  const [locationSensorAboveColor, setLocationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
-  const [locationSensorBelowColor, setLocationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
-  const [locationSensorOptimalColor, setLocationSensorOptimalColor] = useState(() =>
-    loadLocationSensorAlertOptimalColor()
-  );
+  const {
+    colorize: colorizeLocationSensorValues,
+    aboveColor: locationSensorAboveColor,
+    belowColor: locationSensorBelowColor,
+    optimalColor: locationSensorOptimalColor,
+  } = useLocationSensorColorPrefs();
   const [deleteLocationSensorsTarget, setDeleteLocationSensorsTarget] = useState<{
     locationName: string;
     sensorIds: number[];
@@ -530,12 +517,15 @@ export function SettingsPage() {
   );
 
   // Live readings (reachable-aware), fetched per location the same way
-  // InventoryPage's table view does — false to get every bound sensor here,
-  // not just the ones marked to show on the filament card. Only runs while
-  // this tab is actually open.
+  // InventoryPage's table view and SpoolLocationFooter do — false to get
+  // every bound sensor here, not just the ones marked to show on the
+  // filament card. Same query key as those two (no 'all'/'cardOnly' suffix),
+  // so navigating here after Inventory has already fetched a location is a
+  // cache hit instead of a second request; navigating back does the same
+  // for Inventory. Only runs while this tab is actually open.
   const locationSensorReadingsQueries = useQueries({
     queries: locationSensorLocationIds.map((locationId) => ({
-      queryKey: ['locationHaSensorReadings', locationId, 'all'],
+      queryKey: ['locationHaSensorReadings', locationId],
       queryFn: () => api.getLocationHASensorReadings(locationId, false),
       enabled: activeTab === 'sensors',
       refetchInterval: activeTab === 'sensors' ? (settings?.location_sensor_poll_interval || 120) * 1000 : false,
@@ -3945,16 +3935,24 @@ export function SettingsPage() {
 
             {locationHaSensors && locationHaSensors.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from(
-                  locationHaSensors
-                    .reduce((map, sensor) => {
-                      const list = map.get(sensor.location_id) ?? [];
-                      list.push(sensor);
-                      map.set(sensor.location_id, list);
-                      return map;
-                    }, new Map<number, LocationHASensor[]>())
-                    .entries()
-                ).map(([locationId, unsortedSensors]) => {
+                {(() => {
+                  // Card order follows haSensorLocations (already sorted
+                  // naturally by the backend — "Drybox 2" before "Drybox
+                  // 10"), not the Map's insertion order, which is whatever
+                  // order the sensors themselves happened to be created in.
+                  const locationOrder = new Map((haSensorLocations ?? []).map((l, i) => [l.id, i]));
+                  const grouped = locationHaSensors.reduce((map, sensor) => {
+                    const list = map.get(sensor.location_id) ?? [];
+                    list.push(sensor);
+                    map.set(sensor.location_id, list);
+                    return map;
+                  }, new Map<number, LocationHASensor[]>());
+                  return Array.from(grouped.entries()).sort(
+                    ([a], [b]) =>
+                      (locationOrder.get(a) ?? Number.MAX_SAFE_INTEGER) -
+                      (locationOrder.get(b) ?? Number.MAX_SAFE_INTEGER)
+                  );
+                })().map(([locationId, unsortedSensors]) => {
                   const location = haSensorLocations?.find((l) => l.id === locationId);
                   const iconForSensor = (sensor: LocationHASensor) =>
                     iconForHASensor({ device_class: sensor.device_class, state: sensor.last_state, kind: sensor.kind });
@@ -6215,15 +6213,7 @@ export function SettingsPage() {
       )}
 
       {showLocationSensorOptionsModal && (
-        <LocationSensorOptionsModal
-          onClose={() => {
-            setShowLocationSensorOptionsModal(false);
-            setColorizeLocationSensorValues(loadLocationSensorColorizeValues());
-            setLocationSensorAboveColor(loadLocationSensorAlertAboveColor());
-            setLocationSensorBelowColor(loadLocationSensorAlertBelowColor());
-            setLocationSensorOptimalColor(loadLocationSensorAlertOptimalColor());
-          }}
-        />
+        <LocationSensorOptionsModal onClose={() => setShowLocationSensorOptionsModal(false)} />
       )}
 
       {deleteLocationSensorsTarget && (

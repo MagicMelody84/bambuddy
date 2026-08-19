@@ -103,3 +103,7 @@ class LocationHASensorReading(BaseModel):
     alert_above: float | None = None
     alert_below: float | None = None
     last_changed: datetime | None = None
+    # Lets a consumer that fetched the unfiltered (show_on_card=False) list
+    # still pick out the card-visible subset itself, instead of issuing a
+    # second request for the same location.
+    show_on_card: bool = True

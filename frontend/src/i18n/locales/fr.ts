@@ -4305,6 +4305,9 @@ export default {
     fromFileHint: 'Le concepteur a modifié ce paramètre dans le fichier source. Sa valeur est {{value}}.',
     fromFilePrinterCoupled: 'imprimante du concepteur',
     fromFilePrinterCoupledHint: "Réglé pour l'imprimante pour laquelle ce fichier a été conçu — peut être incorrect ou hors plage sur la vôtre.",
+    fromFileOverridesPreset: 'remplace le profil',
+    fromFileOverridesPresetHint:
+      'Le fichier impose {{value}} alors que le profil choisi utilise {{preset}}. À cocher uniquement si le fichier doit primer.',
     useFromFile: 'Utiliser la valeur du fichier source pour {{option}}',
     otherFromFile: 'Autres paramètres de ce fichier',
     loading: 'Chargement des paramètres du trancheur…',
@@ -5305,6 +5308,9 @@ export default {
     noProject: 'Aucun projet',
     itemsPrinted: 'Nombre de pièces',
     itemsPrintedHelp: 'Nombre d\'objets produits',
+    filamentUsed: 'Filament utilisé (g)',
+    filamentUsedPlaceholder: 'p. ex. 46.16',
+    filamentUsedHelp: 'À saisir à la main lorsqu\'une impression a été archivée sans son 3MF, afin qu\'elle compte quand même dans les totaux de filament. Une nouvelle analyse d\'une archive qui possède son 3MF relit la valeur depuis le fichier.',
     notes: 'Notes',
     notesPlaceholder: 'Notes sur l\'impression...',
     externalLink: 'Lien externe',
@@ -5750,6 +5756,7 @@ export default {
       confirmMessage: "Bambuddy a également trouvé d'autres capteurs pour cet emplacement. Choisissez ceux à ajouter aussi.",
       added: 'Également ajouté : {{names}}',
       noneFound: 'Aucun capteur de température, d\'humidité ou de batterie correspondant trouvé pour cet emplacement.',
+      onlyThisOne: 'Seulement celui-ci',
     },
     options: {
       buttonLabel: 'Options des capteurs',
@@ -6113,8 +6120,10 @@ export default {
     notificationEvents: 'Événements de notification',
     progressPercent: '(25 %, 50 %, 75 %)',
     bedCooledAfterPrint: '(après la fin de l\'impression)',
-    haSensorAlert: 'Alerte de capteur',
+    haSensorAlert: "Alerte de capteur d'imprimante",
     haSensorAlertDescription: '(un capteur Home Assistant lié nécessite votre attention)',
+    locationHaSensorAlert: 'Alerte de capteur d\'emplacement',
+    locationHaSensorAlertDescription: '(un capteur Home Assistant lié à un emplacement de stockage nécessite votre attention)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'Priorité ntfy',

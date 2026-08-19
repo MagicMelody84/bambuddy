@@ -139,7 +139,7 @@ DEFAULT_TEMPLATES = [
     },
     {
         "event_type": "ha_sensor_alert",
-        "name": "Home Assistant Sensor Alert",
+        "name": "Printer Sensor Alert",
         "title_template": "Sensor Alert",
         "body_template": "{printer}: {sensor} is {state}",
     },

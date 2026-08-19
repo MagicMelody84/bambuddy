@@ -11,6 +11,9 @@ import { inventoryLocationsQueryKey, invalidateInventoryLocations } from '../uti
 interface LocationsModalProps {
   open: boolean;
   onClose: () => void;
+  // Optional even with startCreating: a caller that just wants the inline
+  // "create a location" dialog without picking one afterward can omit it.
+  // The save always closes the modal regardless of whether this is set.
   onPickLocation?: (locationId: number) => void;
   startCreating?: boolean;
 }
@@ -62,8 +65,15 @@ export function LocationsModal({ open, onClose, onPickLocation, startCreating }:
     onSuccess: (saved) => {
       showToast(t(editing ? 'locations.updated' : 'locations.created'), 'success');
       invalidate();
-      if (!editing && startCreating && onPickLocation) {
-        onPickLocation(saved.id);
+      // startCreating mode has no location-list view to fall back to (see the
+      // render branch below and closeEditor's own unconditional onClose), so
+      // a save here must always close — with or without onPickLocation, which
+      // is optional by design for a caller that only wants location
+      // management, not a picker. Gating this on onPickLocation being set
+      // used to leave editorOpen false with open still true: nothing left to
+      // render, but the caller never told to close.
+      if (!editing && startCreating) {
+        onPickLocation?.(saved.id);
         onClose();
         return;
       }

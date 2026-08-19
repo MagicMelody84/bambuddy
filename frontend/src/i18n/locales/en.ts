@@ -4351,6 +4351,9 @@ export default {
     fromFileHint: 'The designer changed this in the source file. Its value is {{value}}.',
     fromFilePrinterCoupled: "designer's printer",
     fromFilePrinterCoupledHint: 'Tuned for the printer this file was designed for -- may be wrong or out of range on yours.',
+    fromFileOverridesPreset: 'overrides preset',
+    fromFileOverridesPresetHint:
+      'The file sets this to {{value}} where the preset you picked uses {{preset}}. Tick it only if the file should win.',
     useFromFile: "Use the source file's value for {{option}}",
     otherFromFile: 'Other settings from this file',
     loading: 'Loading slicer settings…',
@@ -5366,6 +5369,9 @@ export default {
     noProject: 'No project',
     itemsPrinted: 'Items Printed',
     itemsPrintedHelp: 'Number of items produced in this print job',
+    filamentUsed: 'Filament used (g)',
+    filamentUsedPlaceholder: 'e.g. 46.16',
+    filamentUsedHelp: 'Set this by hand when a print archived without its 3MF, so it still counts towards the filament totals. Rescanning an archive that has its 3MF reads the figure back from the file.',
     notes: 'Notes',
     notesPlaceholder: 'Add notes about this print...',
     externalLink: 'External Link',
@@ -5811,6 +5817,7 @@ export default {
       confirmMessage: 'Bambuddy also found other sensors for this location. Choose which ones to add too.',
       added: 'Also added: {{names}}',
       noneFound: 'No matching temperature, humidity, or battery sensors found for this location.',
+      onlyThisOne: 'Only this one',
     },
     options: {
       buttonLabel: 'Sensor options',
@@ -6174,8 +6181,10 @@ export default {
     notificationEvents: 'Notification Events',
     progressPercent: '(25%, 50%, 75%)',
     bedCooledAfterPrint: '(after print completes)',
-    haSensorAlert: 'Sensor Alert',
+    haSensorAlert: 'Printer Sensor Alert',
     haSensorAlertDescription: '(a bound Home Assistant sensor needs attention)',
+    locationHaSensorAlert: 'Storage Location Sensor Alert',
+    locationHaSensorAlertDescription: '(a Home Assistant sensor bound to a storage location needs attention)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'ntfy Priority',

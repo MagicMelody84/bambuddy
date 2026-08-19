@@ -14,7 +14,7 @@ import { api, spoolbuddyApi, ApiError } from '../api/client';
 import type { InventorySpool, SpoolCatalogEntry, LocationHASensorReading } from '../api/client';
 import { Button } from '../components/Button';
 import { FilamentSwatch } from '../components/FilamentSwatch';
-import { HA_SENSOR_BINARY_LABELS, iconForHASensor } from '../utils/haSensorDisplay';
+import { describeHASensorReading, iconForHASensor } from '../utils/haSensorDisplay';
 import { buildFilamentBackground } from '../components/filamentSwatchHelpers';
 import {SpoolFormModal, type SpoolFormMode} from '../components/SpoolFormModal';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -36,12 +36,9 @@ import {
 } from '../utils/inventoryQueries';
 import { aggregateGroupSpool } from '../utils/inventoryGrouping';
 import {
-  loadLocationSensorAlertAboveColor,
-  loadLocationSensorAlertBelowColor,
-  loadLocationSensorAlertOptimalColor,
-  loadLocationSensorColorizeValues,
   locationSensorReadingAlertStatus,
   locationSensorValueColorClass,
+  useLocationSensorColorPrefs,
   type LocationSensorAlertColor,
 } from '../utils/locationSensorDefaults';
 
@@ -658,10 +655,12 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
   const dateFormat: DateFormat = settings?.date_format || 'system';
   const locationSensorPollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
 
-  const [colorizeLocationSensors] = useState(() => loadLocationSensorColorizeValues());
-  const [locationSensorAboveColor] = useState(() => loadLocationSensorAlertAboveColor());
-  const [locationSensorBelowColor] = useState(() => loadLocationSensorAlertBelowColor());
-  const [locationSensorOptimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
+  const {
+    colorize: colorizeLocationSensors,
+    aboveColor: locationSensorAboveColor,
+    belowColor: locationSensorBelowColor,
+    optimalColor: locationSensorOptimalColor,
+  } = useLocationSensorColorPrefs();
 
   // Query key and fetch function differ based on data source
   const spoolsQueryKey = spoolmanMode ? ['spoolman-inventory-spools'] : ['inventory-spools'];
@@ -1181,11 +1180,21 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
     return Array.from(ids);
   }, [spools, locationIdsWithSensors]);
 
+  // Card view always needs readings (the SpoolCard footer below reads this
+  // same cache and filters to show_on_card itself); table view only needs
+  // them when a sensor column is actually visible, since the default
+  // column config hides all three.
+  const needsLocationReadings =
+    viewMode === 'cards' ||
+    (viewMode === 'table' &&
+      columnConfig.some((c) => c.visible && (c.id === 'temperature' || c.id === 'humidity' || c.id === 'battery')));
+
   const locationReadingsQueries = useQueries({
     queries: usedLocationIds.map((locationId) => ({
-      queryKey: ['locationHaSensorReadings', locationId, 'all'],
+      queryKey: ['locationHaSensorReadings', locationId],
       queryFn: () => api.getLocationHASensorReadings(locationId, false),
       refetchInterval: locationSensorPollIntervalMs,
+      enabled: needsLocationReadings,
     })),
   });
 
@@ -2084,6 +2093,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                                 onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                                 onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
                                 t={t}
+                                colorizeLocationSensors={colorizeLocationSensors}
+                                locationSensorAboveColor={locationSensorAboveColor}
+                                locationSensorBelowColor={locationSensorBelowColor}
+                                locationSensorOptimalColor={locationSensorOptimalColor}
                               />
                             );
                           })}
@@ -2105,6 +2118,10 @@ function InventoryPage({ spoolmanMode = false, spoolmanModeReady = true }: { spo
                     onPrintLabel={() => setLabelPickerSpoolIds([spool.id])}
                     onCopy={() => setFormModal({ spool: spool, mode: 'copy' })}
                     t={t}
+                    colorizeLocationSensors={colorizeLocationSensors}
+                    locationSensorAboveColor={locationSensorAboveColor}
+                    locationSensorBelowColor={locationSensorBelowColor}
+                    locationSensorOptimalColor={locationSensorOptimalColor}
                   />
                 );
               })}
@@ -2572,6 +2589,7 @@ function PaginationBar({
 /* Spool card for cards view */
 function SpoolCard({
   spool, remaining, pct, onClick, onPrintLabel, onCopy, t,
+  colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor,
 }: {
   spool: InventorySpool;
   remaining: number;
@@ -2580,6 +2598,10 @@ function SpoolCard({
   onPrintLabel?: () => void;
   onCopy?: () => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
+  colorizeLocationSensors: boolean;
+  locationSensorAboveColor: LocationSensorAlertColor;
+  locationSensorBelowColor: LocationSensorAlertColor;
+  locationSensorOptimalColor: LocationSensorAlertColor;
 }) {
   const bannerStyle = buildFilamentBackground({
     rgba: spool.rgba,
@@ -2666,6 +2688,10 @@ function SpoolCard({
             locationId={spool.location_id}
             locationName={spool.storage_location ?? null}
             isLast={!spool.note}
+            colorize={colorizeLocationSensors}
+            aboveColor={locationSensorAboveColor}
+            belowColor={locationSensorBelowColor}
+            optimalColor={locationSensorOptimalColor}
           />
         )}
         {spool.note && (
@@ -2694,19 +2720,14 @@ function locationSensorIconGapClass(deviceClass: string | null): string {
   return '';
 }
 
+// Two decimal places, unlike the printer row's raw value: keeps
+// temperature/humidity/battery cells at a consistent width in the table and
+// card grid (see describeHASensorReading's doc comment).
 function describeLocationSensor(
   reading: LocationHASensorReading,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string {
-  if (!reading.reachable || reading.state === null) return t('haSensors.unavailable');
-  if (reading.kind === 'numeric') {
-    if (reading.value === null) return reading.state;
-    const formatted = reading.value.toFixed(2);
-    return reading.unit ? `${formatted} ${reading.unit}` : formatted;
-  }
-  const labels = HA_SENSOR_BINARY_LABELS[reading.device_class ?? ''];
-  const key = labels ? labels[reading.state === 'on' ? 'on' : 'off'] : reading.state;
-  return t(`haSensors.states.${key}`, { defaultValue: key });
+  return describeHASensorReading(reading, t, { decimals: 2 });
 }
 
 function locationSensorCellColor(
@@ -2722,17 +2743,17 @@ function locationSensorCellColor(
 }
 
 function SpoolLocationFooter({
-  locationId, locationName, isLast,
+  locationId, locationName, isLast, colorize, aboveColor, belowColor, optimalColor,
 }: {
   locationId: number;
   locationName: string | null;
   isLast: boolean;
+  colorize: boolean;
+  aboveColor: LocationSensorAlertColor;
+  belowColor: LocationSensorAlertColor;
+  optimalColor: LocationSensorAlertColor;
 }) {
   const { t } = useTranslation();
-  const [colorize] = useState(() => loadLocationSensorColorizeValues());
-  const [aboveColor] = useState(() => loadLocationSensorAlertAboveColor());
-  const [belowColor] = useState(() => loadLocationSensorAlertBelowColor());
-  const [optimalColor] = useState(() => loadLocationSensorAlertOptimalColor());
 
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const pollIntervalMs = (settings?.location_sensor_poll_interval || 120) * 1000;
@@ -2747,12 +2768,18 @@ function SpoolLocationFooter({
   });
   const hasSensor = (sensorsList ?? []).some((s) => s.location_id === locationId);
 
-  const { data: readings } = useQuery({
-    queryKey: ['locationHaSensorReadings', locationId, 'cardOnly'],
-    queryFn: () => api.getLocationHASensorReadings(locationId),
+  // Same query key as the table-view columns' fetch in InventoryPage's body
+  // (unfiltered, show_on_card=false) — this is a cache read whenever that
+  // has already run, and the two views never need two different requests
+  // for one location. Filtering to card-visible sensors happens here
+  // instead of on the server.
+  const { data: allReadings } = useQuery({
+    queryKey: ['locationHaSensorReadings', locationId],
+    queryFn: () => api.getLocationHASensorReadings(locationId, false),
     refetchInterval: pollIntervalMs,
     enabled: hasSensor,
   });
+  const readings = allReadings?.filter((r) => r.show_on_card);
 
   if (!readings?.length) return null;
 

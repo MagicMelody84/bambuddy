@@ -4304,6 +4304,9 @@ export default {
     fromFileHint: 'Il designer ha modificato questo parametro nel file di origine. Il valore è {{value}}.',
     fromFilePrinterCoupled: 'stampante del designer',
     fromFilePrinterCoupledHint: 'Tarato per la stampante per cui è stato progettato questo file: sulla tua può essere errato o fuori intervallo.',
+    fromFileOverridesPreset: 'sovrascrive il profilo',
+    fromFileOverridesPresetHint:
+      'Il file imposta {{value}} mentre il profilo scelto usa {{preset}}. Selezionalo solo se deve prevalere il file.',
     useFromFile: 'Usa il valore del file di origine per {{option}}',
     otherFromFile: 'Altre impostazioni da questo file',
     loading: 'Caricamento impostazioni dello slicer…',
@@ -5304,6 +5307,9 @@ export default {
     noProject: 'Nessun progetto',
     itemsPrinted: 'Elementi stampati',
     itemsPrintedHelp: 'Numero di elementi prodotti in questo job di stampa',
+    filamentUsed: 'Filamento usato (g)',
+    filamentUsedPlaceholder: 'es. 46.16',
+    filamentUsedHelp: 'Inseriscilo a mano quando una stampa è stata archiviata senza il suo 3MF, così da farla rientrare comunque nei totali del filamento. La riscansione di un archivio che ha il suo 3MF rilegge il valore dal file.',
     notes: 'Note',
     notesPlaceholder: 'Aggiungi note su questa stampa...',
     externalLink: 'Link esterno',
@@ -5749,6 +5755,7 @@ export default {
       confirmMessage: 'Bambuddy ha trovato anche altri sensori per questa posizione. Scegli quali aggiungere.',
       added: 'Aggiunto anche: {{names}}',
       noneFound: 'Nessun sensore di temperatura, umidità o batteria corrispondente trovato per questa posizione.',
+      onlyThisOne: 'Solo questo',
     },
     options: {
       buttonLabel: 'Opzioni sensori',
@@ -6112,8 +6119,10 @@ export default {
     notificationEvents: 'Eventi di notifica',
     progressPercent: '(25%, 50%, 75%)',
     bedCooledAfterPrint: '(dopo il completamento della stampa)',
-    haSensorAlert: 'Avviso sensore',
+    haSensorAlert: 'Avviso sensore stampante',
     haSensorAlertDescription: '(un sensore Home Assistant collegato richiede attenzione)',
+    locationHaSensorAlert: 'Avviso sensore di posizione',
+    locationHaSensorAlertDescription: '(un sensore Home Assistant collegato a una posizione di archiviazione richiede attenzione)',
     // Per-event ntfy priority (#990)
     eventPriority: {
       sectionTitle: 'Priorità ntfy',
