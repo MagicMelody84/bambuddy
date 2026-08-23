@@ -40,6 +40,55 @@ _UPDATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE)
 _DELETE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_DELETE)
 
 
+# Mirrors categoryFor() in LocationHASensorModal.tsx — "moisture" is Home
+# Assistant's device class for some humidity sensors and counts as the same
+# category. A device class outside these three has no category and is not
+# subject to the one-per-location rule below.
+_CATEGORY_BY_DEVICE_CLASS = {
+    "temperature": "temperature",
+    "humidity": "humidity",
+    "moisture": "humidity",
+    "battery": "battery",
+}
+
+
+def _category_for(device_class: str | None) -> str | None:
+    return _CATEGORY_BY_DEVICE_CLASS.get(device_class) if device_class else None
+
+
+async def _reject_duplicate_category(
+    db: AsyncSession,
+    location_id: int,
+    device_class: str | None,
+    exclude_sensor_id: int | None = None,
+) -> None:
+    """One sensor per category per location, enforced here and not only in the UI.
+
+    The inventory column and the card footer both pick their reading with a
+    single ``find`` over the location's sensors, so a second temperature
+    sensor does not show up alongside the first — it silently shadows it
+    depending on row order. The modal already prompts to replace rather than
+    add, so this closes the same rule for direct API callers instead of
+    leaving the guarantee resting on the client.
+    """
+    category = _category_for(device_class)
+    if category is None:
+        return
+
+    query = select(LocationHASensor).where(LocationHASensor.location_id == location_id)
+    if exclude_sensor_id is not None:
+        query = query.where(LocationHASensor.id != exclude_sensor_id)
+
+    result = await db.execute(query)
+    for other in result.scalars().all():
+        if _category_for(other.device_class) == category:
+            raise HTTPException(
+                400,
+                f"This location already has a {category} sensor ({other.entity_id}). "
+                "Edit that sensor to point at a different entity instead.",
+            )
+
+
 async def _refresh_quietly(sensor: LocationHASensor, db: AsyncSession) -> None:
     """Take a first reading without letting it fail the write that preceded it.
 
@@ -155,6 +204,8 @@ async def create_location_ha_sensor(
     if existing.scalar_one_or_none():
         raise HTTPException(400, f"{data.entity_id} is already bound to this location")
 
+    await _reject_duplicate_category(db, data.location_id, data.device_class)
+
     sensor = LocationHASensor(**data.model_dump())
     db.add(sensor)
     await db.commit()
@@ -217,6 +268,12 @@ async def update_location_ha_sensor(
         )
         if clash.scalar_one_or_none():
             raise HTTPException(400, f"{new_entity} is already bound to this location")
+
+    # Same one-per-category rule as create, against the merged row and
+    # excluding this sensor — repointing a sensor within its own category
+    # (the modal's replace flow) stays allowed.
+    if "device_class" in updates:
+        await _reject_duplicate_category(db, sensor.location_id, merged["device_class"], exclude_sensor_id=sensor.id)
 
     for field, value in updates.items():
         setattr(sensor, field, value)

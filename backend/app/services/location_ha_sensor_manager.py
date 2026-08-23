@@ -67,6 +67,17 @@ class LocationHASensorManager:
                 await asyncio.sleep(await self._get_poll_interval())
             except asyncio.CancelledError:
                 break
+            except Exception as e:
+                # _get_poll_interval() reads Settings, so this leg does I/O
+                # and a transient database failure (pool exhaustion, a
+                # restarting server) can raise here. Letting it escape ends
+                # the task for good: stop() is what clears self._task, so a
+                # loop that died on its own leaves it set and start() will
+                # not revive it — location sensors would stay frozen until
+                # the process restarts. The poll_once() call above already
+                # survives the same error one line earlier.
+                logger.warning("Home Assistant location-sensor poll interval lookup failed: %s", e)
+                await asyncio.sleep(POLL_INTERVAL)
 
     async def _get_poll_interval(self) -> int:
         """User-configurable poll cadence, clamped to a sane floor.

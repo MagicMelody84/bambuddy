@@ -1,5 +1,8 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from backend.app.services.location_ha_sensor_manager import LocationHASensorManager
 
@@ -88,3 +91,54 @@ class TestNotificationEdge:
         await self._apply(manager, sensor, {sensor.entity_id: {"state": "66"}}, notify)
 
         assert notify.on_location_ha_sensor_alert.await_count == 1
+
+
+class TestPollLoopSurvival:
+    """The loop must outlive a transient database error (#2824 review).
+
+    _get_poll_interval() reads Settings, so the sleep leg of _poll_loop does
+    I/O and can raise on pool exhaustion or a restarting database. Letting
+    that escape ends the task permanently: stop() is what clears _task, so a
+    self-terminated loop leaves it set and start() refuses to restart it.
+    """
+
+    async def test_survives_a_failing_poll_interval_lookup(self):
+        manager = LocationHASensorManager()
+        polls = 0
+
+        async def counting_poll():
+            nonlocal polls
+            polls += 1
+            if polls >= 2:
+                raise asyncio.CancelledError  # end the loop once we've proven it came back
+
+        async def failing_interval():
+            raise RuntimeError("QueuePool limit reached")
+
+        with (
+            patch.object(manager, "poll_once", counting_poll),
+            patch.object(manager, "_get_poll_interval", failing_interval),
+            patch("backend.app.services.location_ha_sensor_manager.POLL_INTERVAL", 0),
+        ):
+            await manager._poll_loop()
+
+        # Without the guard the first lookup failure escapes _poll_loop and
+        # poll_once never runs a second time.
+        assert polls == 2
+
+    async def test_a_cancel_during_the_fallback_sleep_still_stops_the_loop(self):
+        manager = LocationHASensorManager()
+
+        async def failing_interval():
+            raise RuntimeError("database is locked")
+
+        with (
+            patch.object(manager, "poll_once", AsyncMock()),
+            patch.object(manager, "_get_poll_interval", failing_interval),
+            patch("backend.app.services.location_ha_sensor_manager.POLL_INTERVAL", 3600),
+        ):
+            task = asyncio.create_task(manager._poll_loop())
+            await asyncio.sleep(0)  # let it reach the fallback sleep
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
