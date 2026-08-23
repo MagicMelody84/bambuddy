@@ -17,6 +17,4 @@ def natural_sort_key(value: str) -> tuple:
     is consistent across every key this function produces — two keys can be
     compared without ever hitting a str-vs-int mismatch mid-tuple.
     """
-    return tuple(
-        int(chunk) if chunk.isdigit() else chunk.lower() for chunk in _CHUNK_RE.split(value)
-    )
+    return tuple(int(chunk) if chunk.isdigit() else chunk.lower() for chunk in _CHUNK_RE.split(value))

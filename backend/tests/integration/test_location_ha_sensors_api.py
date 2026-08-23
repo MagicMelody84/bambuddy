@@ -232,6 +232,125 @@ class TestCascadeAndUniqueness:
         assert response.status_code == 400
         assert "already bound" in response.json()["detail"]
 
+    # One sensor per category per location (#2824 review). The card footer and
+    # the inventory column each pick their reading with a single `find`, so a
+    # second sensor of the same category silently shadows the first instead of
+    # appearing next to it. The modal prompts to replace; these cover the same
+    # rule for a direct API caller.
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_rejects_a_second_sensor_of_the_same_category(self, async_client: AsyncClient, location_factory):
+        location = await location_factory()
+        await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={
+                **HUMIDITY,
+                "location_id": location.id,
+                "name": "Second Humidity",
+                "entity_id": "sensor.drybox_humidity_two",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "humidity" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_moisture_counts_as_humidity(self, async_client: AsyncClient, location_factory):
+        """Home Assistant reports some humidity sensors as device_class "moisture"."""
+        location = await location_factory()
+        await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={
+                **HUMIDITY,
+                "location_id": location.id,
+                "name": "Moisture",
+                "entity_id": "sensor.drybox_moisture",
+                "device_class": "moisture",
+            },
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_allows_a_different_category_on_the_same_location(self, async_client: AsyncClient, location_factory):
+        """The auto-bind flow adds temperature/humidity/battery siblings together."""
+        location = await location_factory()
+        await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={
+                **HUMIDITY,
+                "location_id": location.id,
+                "name": "Drybox Temperature",
+                "entity_id": "sensor.drybox_temperature",
+                "device_class": "temperature",
+                "unit": "°C",
+            },
+        )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_same_category_on_another_location_is_fine(self, async_client: AsyncClient, location_factory):
+        one = await location_factory()
+        two = await location_factory()
+        await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": one.id})
+
+        response = await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": two.id})
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_repointing_a_sensor_within_its_own_category_still_works(
+        self, async_client: AsyncClient, location_factory
+    ):
+        """The modal's replace flow PATCHes the existing row — it must not hit its own rule."""
+        location = await location_factory()
+        created = await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.patch(
+            f"/api/v1/location-ha-sensors/{created.json()['id']}",
+            json={"entity_id": "sensor.other_humidity", "device_class": "humidity"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["entity_id"] == "sensor.other_humidity"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_patch_cannot_collide_with_another_sensors_category(
+        self, async_client: AsyncClient, location_factory
+    ):
+        location = await location_factory()
+        await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+        temperature = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={
+                **HUMIDITY,
+                "location_id": location.id,
+                "name": "Drybox Temperature",
+                "entity_id": "sensor.drybox_temperature",
+                "device_class": "temperature",
+                "unit": "°C",
+            },
+        )
+
+        response = await async_client.patch(
+            f"/api/v1/location-ha-sensors/{temperature.json()['id']}",
+            json={"device_class": "humidity"},
+        )
+
+        assert response.status_code == 400
+
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_deleting_a_location_takes_its_sensors(self, async_client: AsyncClient, location_factory):
