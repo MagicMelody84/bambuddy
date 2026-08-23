@@ -44,6 +44,13 @@ from backend.app.models.spoolman_slot_assignment import SpoolmanSlotAssignment
 from backend.app.models.user import User
 from backend.app.schemas.spool import SpoolFilamentPresetBase, SpoolKProfileBase
 from backend.app.schemas.spoolman import SpoolmanFilamentPatch, SpoolmanSlotAssignmentEnriched
+from backend.app.services.custom_field_service import (
+    get_definitions,
+    spoolman_extra_key,
+    spoolman_field_type,
+    spoolman_value,
+    validate_values,
+)
 from backend.app.services.location_service import (
     enrich_spool_dicts_with_location_id,
     maybe_sync_spoolman_locations,
@@ -323,6 +330,9 @@ class SpoolmanInventoryCreate(BaseModel):
     # in the spool's extra dict and read it back in _map_spoolman_spool.
     slicer_filament: str | None = Field(None, max_length=128)
     slicer_filament_name: str | None = Field(None, max_length=255)
+    # User-defined custom fields, keyed by CustomField.key. Definitions stay
+    # local; the values are mirrored into Spoolman's extra dict.
+    custom_fields: dict[str, str | None] = Field(default_factory=dict)
 
     @field_validator("rgba")
     @classmethod
@@ -365,6 +375,8 @@ class SpoolmanInventoryUpdate(BaseModel):
     # schema). Pass an empty string to clear; null/omitted leaves unchanged.
     slicer_filament: str | None = Field(None, max_length=128)
     slicer_filament_name: str | None = Field(None, max_length=255)
+    # Only the keys present are written; null/"" clears that field.
+    custom_fields: dict[str, str | None] | None = None
 
     @field_validator("rgba")
     @classmethod
@@ -521,6 +533,47 @@ async def _resolve_filament_id(data: SpoolmanInventoryCreate, client: SpoolmanCl
         )
 
 
+async def _validate_custom_fields(db: AsyncSession, payload: dict[str, str | None]) -> dict[str, str | None]:
+    """Check an incoming custom-field payload against the local definitions."""
+    if not payload:
+        return {}
+    try:
+        return validate_values(payload, await get_definitions(db))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _write_custom_fields(db: AsyncSession, client, spool_id: int, values: dict[str, str | None]) -> dict | None:
+    """Mirror validated custom-field values into a Spoolman spool's extra dict.
+
+    Spoolman rejects PATCHes carrying unregistered extra keys, so each field is
+    registered first, under the matching Spoolman type (see
+    ``spoolman_field_type`` for why `choice` is the one exception). Values are
+    written as JSON typed to that field — an integer as ``5``, a range as
+    ``[1,5]`` — and a cleared value as ``null``, because Spoolman merges extra
+    dicts and a missing key would leave the old value in place.
+
+    Writes go through ``merge_spool_extra``, which serialises on the per-spool
+    lock — a concurrent NFC write-back must not clobber the tag key between our
+    read and our write.
+    """
+    if not values:
+        return None
+    by_key = {definition.key: definition for definition in await get_definitions(db)}
+    new_extra: dict = {}
+    for key, value in values.items():
+        definition = by_key.get(key)
+        if definition is None:
+            continue
+        extra_key = spoolman_extra_key(key)
+        await client.ensure_extra_field(extra_key, spoolman_field_type(definition.field_type))
+        new_extra[extra_key] = json.dumps(spoolman_value(value, definition.field_type))
+    if not new_extra:
+        return None
+    async with _translate_spoolman_errors():
+        return await client.merge_spool_extra(spool_id, new_extra)
+
+
 @router.post("/spools")
 async def create_spool(
     data: SpoolmanInventoryCreate,
@@ -529,6 +582,9 @@ async def create_spool(
 ) -> dict:
     """Create a new spool in Spoolman, auto-creating vendor and filament as needed."""
     client = await _get_client(db)
+    # Validated before the spool is created so a bad value fails cleanly
+    # instead of leaving a half-populated spool behind in Spoolman.
+    custom_values = await _validate_custom_fields(db, data.custom_fields)
     filament_id = await _resolve_filament_id(data, client)
 
     storage_location = data.storage_location
@@ -590,6 +646,16 @@ async def create_spool(
                     "Failed to persist slicer_filament/color_name for spool %s",
                     spool.get("id"),
                 )
+
+    if custom_values:
+        try:
+            updated_spool = await _write_custom_fields(db, client, spool["id"], custom_values)
+            if updated_spool is not None:
+                spool = updated_spool
+        except HTTPException:
+            # Best-effort, mirroring the slicer_filament block above — the
+            # spool already exists, so surface it rather than 500ing.
+            logger.warning("Failed to persist custom fields for spool %s", spool.get("id"))
 
     result = _map_spoolman_spool(spool)
     await ws_manager.broadcast({"type": "inventory_changed"})
@@ -690,6 +756,7 @@ async def update_spool(
 ) -> dict:
     """Update an existing Spoolman spool, re-linking the filament if metadata changed."""
     client = await _get_client(db)
+    custom_values = await _validate_custom_fields(db, data.custom_fields or {})
 
     async with _translate_spoolman_errors():
         current = await client.get_spool(spool_id)
@@ -884,6 +951,11 @@ async def update_spool(
             new_extra["bambu_color_name"] = json.dumps(data.color_name or "")
         async with _translate_spoolman_errors():
             updated = await client.merge_spool_extra(spool_id, new_extra)
+
+    if custom_values:
+        updated_spool = await _write_custom_fields(db, client, spool_id, custom_values)
+        if updated_spool is not None:
+            updated = updated_spool
 
     await ws_manager.broadcast({"type": "inventory_changed"})
     return _map_spoolman_spool(updated)

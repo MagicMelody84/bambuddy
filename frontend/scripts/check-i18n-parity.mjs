@@ -153,7 +153,7 @@ const DE_COGNATES = [
   'Pipeline', 'Pipelines', 'Filament {{n}}',  // #1425 — Slicer Pipelines (DE)
   'parallel',  // #1425 PR C polish — "parallel" is the same word in German
   'Region', 'Normal', 'Orange', 'Branch', 'Budget', 'Commit', 'Global',
-  'Version', 'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Min', 'Admin', 'Cloud',
+  'Version', 'Slot', 'Live', 'Rate', 'Host', 'Trend', 'Min', 'Max', 'Admin', 'Cloud',
   'Filament', 'Filaments', 'Software', 'Hardware', 'Avatar', 'Pin', 'Modal',
   'Active', 'Plate', 'Layer', 'Total', 'Plus', 'Pro', 'Mini', 'Studio',
   'Temperatur', 'Process', 'Service', 'Cache', 'Color', 'Login', 'Logout',
@@ -190,6 +190,7 @@ const FR_COGNATES = [
   'round robin',  // borrowed English term used as-is in French tech contexts
   'Action', 'Actions', 'Date', 'Type', 'Cache', 'Service', 'Configuration',
   'Score',  // #1546 AI detection modal — "le score" is standard French
+  'Options',  // custom fields — "les options" is the ordinary French word
   'Archives', 'Maintenance', 'Notifications', 'Notification', 'Position',
   'Pause', 'Solution', 'Source', 'Version', 'Format', 'Documentation',
   'Mode', 'Format', 'Default', 'Auto', 'Image', 'Audio', 'Video', 'Hex',

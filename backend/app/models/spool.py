@@ -83,9 +83,23 @@ class Spool(Base):
     )
     assignments: Mapped[list["SpoolAssignment"]] = relationship(back_populates="spool", cascade="all, delete-orphan")
     location: Mapped["Location | None"] = relationship(back_populates="spools")
+    # selectin (not the default lazy load) so every `return spool` path can
+    # serialise `custom_fields` without each route remembering an eager-load
+    # option — an async lazy load would raise instead. Costs one extra batched
+    # SELECT per spool query, which is negligible next to silently dropping
+    # user data on a route someone forgot to update.
+    custom_values: Mapped[list["SpoolCustomFieldValue"]] = relationship(
+        back_populates="spool", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+    @property
+    def custom_fields(self) -> dict[str, str | None]:
+        """Flattened {field key: value}, the shape both inventory backends return."""
+        return {row.field.key: row.value for row in self.custom_values if row.field is not None}
 
 
 from backend.app.models.location import Location  # noqa: E402
 from backend.app.models.spool_assignment import SpoolAssignment  # noqa: E402
+from backend.app.models.spool_custom_field_value import SpoolCustomFieldValue  # noqa: E402
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset  # noqa: E402
 from backend.app.models.spool_k_profile import SpoolKProfile  # noqa: E402

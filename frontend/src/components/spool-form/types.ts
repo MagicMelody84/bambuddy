@@ -1,5 +1,5 @@
 
-import type { Printer, SpoolKProfile } from '../../api/client';
+import type { CustomFieldDef, Printer, SpoolKProfile } from '../../api/client';
 
 // Which operation the spool form is performing. Lives here (rather than in
 // SpoolFormModal) so validateForm can key off it without a circular import;
@@ -45,6 +45,9 @@ export interface SpoolFormData {
   // When set the spool is linked to a specific Spoolman filament catalog entry;
   // the backend skips find_or_create_filament() and uses this ID directly.
   spoolman_filament_id: number | null;
+  // User-defined custom fields, keyed by the definition's stable `key`. An
+  // empty string means "no value" and clears the field on save.
+  custom_fields: Record<string, string>;
 }
 
 export const defaultFormData: SpoolFormData = {
@@ -66,6 +69,7 @@ export const defaultFormData: SpoolFormData = {
   low_stock_threshold_pct: null,
   location_id: null,
   spoolman_filament_id: null,
+  custom_fields: {},
 };
 
 // Printer with calibrations type
@@ -215,6 +219,11 @@ export interface AdditionalSectionProps extends SectionProps {
   // When true the empty-spool weight is managed by Spoolman on the filament
   // object, so SpoolWeightPicker is hidden and an info notice is shown instead.
   spoolmanMode?: boolean;
+}
+
+// Custom fields section props
+export interface CustomFieldsSectionProps extends SectionProps {
+  fields: CustomFieldDef[];
 }
 
 // PA Profile section props

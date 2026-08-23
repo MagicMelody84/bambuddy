@@ -21,14 +21,17 @@ from backend.app.core.permissions import Permission
 from backend.app.core.websocket import ws_manager
 from backend.app.models.ams_label import AmsLabel
 from backend.app.models.color_catalog import ColorCatalogEntry
+from backend.app.models.custom_field import CustomField
 from backend.app.models.location import Location
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
+from backend.app.models.spool_custom_field_value import SpoolCustomFieldValue
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.user import User
+from backend.app.schemas.custom_field import CustomFieldCreate, CustomFieldResponse, CustomFieldUpdate
 from backend.app.schemas.location import LocationCreate, LocationResponse, LocationUpdate
 from backend.app.schemas.spool import (
     SpoolAssignmentCreate,
@@ -45,6 +48,14 @@ from backend.app.schemas.spool import (
     normalize_extra_colors,
 )
 from backend.app.schemas.spool_usage import SpoolUsageHistoryResponse
+from backend.app.services.custom_field_service import (
+    DUPLICATE_FIELD_KEY,
+    TYPES_WITH_OPTIONS,
+    apply_values,
+    get_definitions,
+    normalize_field_key,
+    normalize_options,
+)
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
     assign_location_name,
@@ -758,6 +769,191 @@ async def delete_location(
     return {"status": "deleted"}
 
 
+# ── Custom Fields CRUD ─────────────────────────────────────────────────────
+# Definitions are always local, even when the inventory itself comes from
+# Spoolman — the values are what gets mirrored into Spoolman's `extra` dict.
+
+
+async def _custom_field_value_counts(db: AsyncSession, field_ids: list[int]) -> dict[int, int]:
+    """How many spools carry a value for each field, for the delete confirmation."""
+    if not field_ids:
+        return {}
+    result = await db.execute(
+        select(SpoolCustomFieldValue.field_id, func.count(SpoolCustomFieldValue.id))
+        .where(SpoolCustomFieldValue.field_id.in_(field_ids))
+        .group_by(SpoolCustomFieldValue.field_id)
+    )
+    return dict(result.all())  # type: ignore[arg-type]
+
+
+def _custom_field_to_response(field: CustomField, value_count: int) -> CustomFieldResponse:
+    return CustomFieldResponse(
+        id=field.id,
+        key=field.key,
+        name=field.name,
+        field_type=field.field_type,
+        options=list(field.options or []),
+        sort_order=field.sort_order,
+        value_count=value_count,
+        created_at=field.created_at,
+        updated_at=field.updated_at,
+    )
+
+
+@router.get("/custom-fields", response_model=list[CustomFieldResponse])
+async def list_custom_fields(
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+):
+    """List custom field definitions in display order."""
+    fields = await get_definitions(db)
+    counts = await _custom_field_value_counts(db, [f.id for f in fields])
+    return [_custom_field_to_response(f, counts.get(f.id, 0)) for f in fields]
+
+
+@router.post("/custom-fields", response_model=CustomFieldResponse, status_code=201)
+async def create_custom_field(
+    data: CustomFieldCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Create a custom field definition."""
+    try:
+        key = normalize_field_key(data.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    field = CustomField(
+        key=key,
+        name=data.name,
+        field_type=data.field_type,
+        options=data.options,
+        sort_order=data.sort_order,
+    )
+    db.add(field)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=DUPLICATE_FIELD_KEY) from exc
+    await db.refresh(field)
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return _custom_field_to_response(field, 0)
+
+
+@router.patch("/custom-fields/{field_id}", response_model=CustomFieldResponse)
+async def update_custom_field(
+    field_id: int,
+    data: CustomFieldUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Rename a custom field, retype it, or change its options.
+
+    `key` never changes — it is what links the stored values (and the Spoolman
+    `extra` entries) to this definition.
+
+    The type may only change while no spool carries a value: every stored value
+    was parsed against the old type, and reinterpreting them wholesale is not
+    something we can do safely. Removing an option that spools still use is
+    rejected for the same reason, rather than silently orphaning those values.
+    """
+    result = await db.execute(select(CustomField).where(CustomField.id == field_id))
+    field = result.scalar_one_or_none()
+    if not field:
+        raise HTTPException(status_code=404, detail="Custom field not found")
+
+    counts = await _custom_field_value_counts(db, [field.id])
+    value_count = counts.get(field.id, 0)
+
+    target_type = data.field_type if data.field_type is not None else field.field_type
+    if target_type != field.field_type and value_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"The type cannot be changed while {value_count} spool(s) hold a value for this field",
+        )
+
+    if data.options is not None or target_type != field.field_type:
+        # Retyping away from choice drops the (now meaningless) option list;
+        # retyping to choice requires one, which normalize_options enforces.
+        # Options sent for a type that takes none are rejected rather than
+        # dropped, matching what create does.
+        if data.options and target_type not in TYPES_WITH_OPTIONS:
+            raise HTTPException(status_code=400, detail=f"a '{target_type}' field does not take options")
+        candidate = data.options if data.options is not None else list(field.options or [])
+        try:
+            candidate = normalize_options(candidate if target_type in TYPES_WITH_OPTIONS else [], target_type)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        dropped = set(field.options or []) - set(candidate)
+        if dropped:
+            in_use = await db.execute(
+                select(SpoolCustomFieldValue.value)
+                .where(SpoolCustomFieldValue.field_id == field.id)
+                .where(SpoolCustomFieldValue.value.in_(sorted(dropped)))
+                .limit(1)
+            )
+            still_used = in_use.scalar_one_or_none()
+            if still_used is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Option '{still_used}' is still assigned to at least one spool",
+                )
+        field.options = candidate
+
+    field.field_type = target_type
+    if data.name is not None:
+        field.name = data.name
+    if data.sort_order is not None:
+        field.sort_order = data.sort_order
+
+    await db.commit()
+    await db.refresh(field)
+    counts = await _custom_field_value_counts(db, [field.id])
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return _custom_field_to_response(field, counts.get(field.id, 0))
+
+
+@router.delete("/custom-fields/{field_id}")
+async def delete_custom_field(
+    field_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
+):
+    """Delete a custom field definition and every value stored for it.
+
+    Unlike locations this does not refuse when values exist — a field the user
+    no longer wants would otherwise be undeletable without editing every spool.
+    The count is returned so the UI can confirm before calling.
+
+    In Spoolman mode the matching `extra` field is deliberately left registered
+    in Spoolman: it may be shared with other tools, and Bambuddy stops writing
+    to it either way.
+    """
+    result = await db.execute(select(CustomField).where(CustomField.id == field_id))
+    field = result.scalar_one_or_none()
+    if not field:
+        raise HTTPException(status_code=404, detail="Custom field not found")
+
+    counts = await _custom_field_value_counts(db, [field.id])
+    await db.execute(delete(SpoolCustomFieldValue).where(SpoolCustomFieldValue.field_id == field.id))
+    await db.delete(field)
+    await db.commit()
+
+    # Sweep again after the commit. A spool save that read this definition just
+    # before the delete can still land its value row afterwards, and SQLite
+    # does not enforce the foreign key (PRAGMA foreign_keys is off app-wide),
+    # so nothing would stop the write. The row is invisible to the API either
+    # way — Spool.custom_fields skips values whose definition is gone — but
+    # this keeps the table clean instead of leaving it to the startup sweep.
+    await db.execute(delete(SpoolCustomFieldValue).where(SpoolCustomFieldValue.field_id == field_id))
+    await db.commit()
+
+    await ws_manager.broadcast({"type": "inventory_changed"})
+    return {"status": "deleted", "values_removed": counts.get(field_id, 0)}
+
+
 # ── Color Catalog CRUD ─────────────────────────────────────────────────────
 
 
@@ -1337,15 +1533,34 @@ async def create_spool(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),
 ):
     """Create a new spool."""
+    raw = spool_data.model_dump()
+    # Not an ORM column — the values live in their own table, so they are
+    # applied after the spool row exists and has an id.
+    custom_values = raw.pop("custom_fields", None) or {}
     try:
-        payload = await prepare_internal_spool_payload(db, spool_data.model_dump(), set(spool_data.model_fields_set))
+        payload = await prepare_internal_spool_payload(db, raw, set(spool_data.model_fields_set))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spool = Spool(**payload)
     db.add(spool)
     await db.commit()
     await db.refresh(spool)
-    result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool.id))
+    if custom_values:
+        try:
+            await apply_values(db, spool, custom_values, await get_definitions(db))
+        except ValueError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await db.commit()
+    result = await db.execute(
+        # populate_existing so the identity-mapped spool picks up the custom-field
+        # rows just written — the session runs with expire_on_commit off, so its
+        # already-loaded collection would otherwise still hold the pre-write state.
+        select(Spool)
+        .options(selectinload(Spool.k_profiles))
+        .where(Spool.id == spool.id)
+        .execution_options(populate_existing=True)
+    )
     await ws_manager.broadcast({"type": "inventory_changed"})
     return result.scalar_one()
 
@@ -1359,8 +1574,10 @@ async def bulk_create_spools(
     """Create multiple identical spools."""
     spools = []
     fields_set = set(data.spool.model_fields_set)
+    raw = data.spool.model_dump()
+    custom_values = raw.pop("custom_fields", None) or {}
     try:
-        payload = await prepare_internal_spool_payload(db, data.spool.model_dump(), fields_set)
+        payload = await prepare_internal_spool_payload(db, raw, fields_set)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     for _ in range(data.quantity):
@@ -1368,8 +1585,22 @@ async def bulk_create_spools(
         db.add(spool)
         spools.append(spool)
     await db.commit()
+    if custom_values:
+        definitions = await get_definitions(db)
+        try:
+            for spool in spools:
+                await apply_values(db, spool, custom_values, definitions)
+        except ValueError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await db.commit()
     ids = [s.id for s in spools]
-    result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id.in_(ids)))
+    result = await db.execute(
+        select(Spool)
+        .options(selectinload(Spool.k_profiles))
+        .where(Spool.id.in_(ids))
+        .execution_options(populate_existing=True)
+    )
     await ws_manager.broadcast({"type": "inventory_changed"})
     return list(result.scalars().all())
 
@@ -1388,6 +1619,7 @@ async def update_spool(
         raise HTTPException(404, "Spool not found")
 
     update_data = spool_data.model_dump(exclude_unset=True)
+    custom_values = update_data.pop("custom_fields", None)
     try:
         update_data = await prepare_internal_spool_payload(db, update_data, set(spool_data.model_fields_set))
     except ValueError as exc:
@@ -1399,8 +1631,20 @@ async def update_spool(
     for field, value in update_data.items():
         setattr(spool, field, value)
 
+    if custom_values is not None:
+        try:
+            await apply_values(db, spool, custom_values, await get_definitions(db))
+        except ValueError as exc:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     await db.commit()
-    result = await db.execute(select(Spool).options(selectinload(Spool.k_profiles)).where(Spool.id == spool_id))
+    result = await db.execute(
+        select(Spool)
+        .options(selectinload(Spool.k_profiles))
+        .where(Spool.id == spool_id)
+        .execution_options(populate_existing=True)
+    )
     await ws_manager.broadcast({"type": "inventory_changed"})
     return result.scalar_one()
 

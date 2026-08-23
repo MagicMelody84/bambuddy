@@ -20,11 +20,13 @@ import { MATERIALS } from './spool-form/constants';
 import { FilamentSection } from './spool-form/FilamentSection';
 import { ColorSection } from './spool-form/ColorSection';
 import { AdditionalSection } from './spool-form/AdditionalSection';
+import { CustomFieldsSection } from './spool-form/CustomFieldsSection';
 import { SpoolmanFilamentPicker } from './spool-form/SpoolmanFilamentPicker';
 import { PrinterProfilesSection } from './spool-form/PrinterProfilesSection';
 import { normaliseFlow } from '../utils/nozzleFlow';
 import { SpoolUsageHistory } from './SpoolUsageHistory';
 import {
+  inventoryCustomFieldsQueryKey,
   invalidateInventoryLocations,
   invalidateSpoolAndLocationQueries,
 } from '../utils/inventoryQueries';
@@ -85,6 +87,9 @@ export function SpoolFormModal({
   const [cloudPresets, setCloudPresets] = useState<SlicerSetting[]>([]);
   const [orcaSettingIds, setOrcaSettingIds] = useState<Set<string>>(new Set());
   const [presetInputValue, setPresetInputValue] = useState('');
+  // Snapshot of the custom-field values as loaded, so the save can tell which
+  // ones the user actually touched.
+  const [initialCustomFields, setInitialCustomFields] = useState<Record<string, string>>({});
 
   // Spool catalog
   const [spoolCatalog, setSpoolCatalog] = useState<SpoolCatalogEntry[]>([]);
@@ -389,6 +394,11 @@ export function SpoolFormModal({
         // first being forced to fix a color they may not even be aware is
         // broken. Saving also purges the bad value from the DB.
         const validRgba = spool.rgba && /^[0-9A-Fa-f]{8}$/.test(spool.rgba) ? spool.rgba : '808080FF';
+        // Nulls (a cleared field) collapse to '' so the input lands on its
+        // empty state instead of going uncontrolled.
+        const hydratedCustomFields = Object.fromEntries(
+          Object.entries(spool.custom_fields ?? {}).map(([key, value]) => [key, value ?? '']),
+        );
         setFormData({
           material: spool.material || '',
           subtype: spool.subtype || '',
@@ -412,7 +422,11 @@ export function SpoolFormModal({
           low_stock_threshold_pct: spool.low_stock_threshold_pct ?? null,
           location_id: spool.location_id ?? null,
           spoolman_filament_id: null,
+          // Nulls (a cleared field) collapse to '' so the select lands on its
+          // empty option instead of going uncontrolled.
+          custom_fields: hydratedCustomFields,
         });
+        setInitialCustomFields(hydratedCustomFields);
         setPresetInputValue(spool.slicer_filament_name || spool.slicer_filament || '');
 
         // Load K-profiles for this spool. The stored row carries everything
@@ -444,6 +458,7 @@ export function SpoolFormModal({
         }
       } else {
         setFormData(defaultFormData);
+        setInitialCustomFields({});
         setPresetInputValue('');
         setSelectedProfiles(new Map());
       }
@@ -730,6 +745,14 @@ export function SpoolFormModal({
     enabled: isOpen,
     staleTime: Infinity,
   });
+
+  // Definitions are local in both inventory modes — in Spoolman mode only the
+  // values are mirrored into the spool's extra dict.
+  const { data: customFieldDefs = [] } = useQuery({
+    queryKey: inventoryCustomFieldsQueryKey,
+    queryFn: api.getCustomFields,
+    enabled: isOpen,
+  });
   const availableCategories = (() => {
     const set = new Set<string>();
     for (const s of allSpools ?? []) {
@@ -875,6 +898,21 @@ export function SpoolFormModal({
       low_stock_threshold_pct: formData.low_stock_threshold_pct,
       ...(spoolmanMode ? { spoolman_filament_id: formData.spoolman_filament_id } : {}),
     };
+
+    // Send only the fields whose value actually changed. An omitted key means
+    // "leave as is" on the backend, so a cleared value still has to be sent as
+    // '' — but resending untouched ones would rewrite them through whatever the
+    // widget could represent. A timestamp stored with a UTC offset, for
+    // instance, cannot be shown in a datetime-local input, and blindly echoing
+    // that empty input back would silently wipe the value.
+    const changed = customFieldDefs.filter(
+      (field) => (formData.custom_fields[field.key] ?? '') !== (initialCustomFields[field.key] ?? ''),
+    );
+    if (changed.length > 0) {
+      data.custom_fields = Object.fromEntries(
+        changed.map((field) => [field.key, formData.custom_fields[field.key] || '']),
+      );
+    }
 
     // Only send weight_used when creating or when explicitly changed by the user.
     // This prevents stale cached values from overwriting usage-tracker data.
@@ -1099,6 +1137,20 @@ export function SpoolFormModal({
                   spoolmanMode={spoolmanMode}
                 />
               </div>
+
+              {/* Custom Fields — hidden entirely when the user hasn't defined any */}
+              {customFieldDefs.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-bambu-gray uppercase tracking-wide mb-3">
+                    {t('customFields.title')}
+                  </h3>
+                  <CustomFieldsSection
+                    formData={formData}
+                    updateField={updateField}
+                    fields={customFieldDefs}
+                  />
+                </div>
+              )}
 
               {/* Usage History (only when editing internal inventory; Spoolman tracks its own) */}
               {isEditing && spool && !spoolmanMode && (

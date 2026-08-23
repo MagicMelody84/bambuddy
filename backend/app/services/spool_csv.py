@@ -455,6 +455,9 @@ async def parse_and_validate(raw_bytes: bytes, db: AsyncSession) -> ImportPrevie
             continue
 
         spool_data = spool.model_dump()
+        # Custom fields aren't CSV columns (and aren't ORM columns either), so
+        # drop the empty default before the dict is handed to `Spool(**...)`.
+        spool_data.pop("custom_fields", None)
         if last_used is not None:
             # last_used isn't a SpoolCreate field; graft it onto the persisted
             # dict so the ORM object carries it.
