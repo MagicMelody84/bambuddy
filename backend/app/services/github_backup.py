@@ -13,10 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import async_session
 from backend.app.models.archive import PrintArchive
+from backend.app.models.custom_field import CustomField
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
+from backend.app.models.location import Location
 from backend.app.models.printer import Printer
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
+from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.services.git_providers.factory import get_provider_backend
@@ -751,8 +754,82 @@ class GitHubBackupService:
             "settings": settings_data,
         }
 
+    async def _collect_locations(self, db: AsyncSession, files: dict):
+        """Collect the storage-location catalog (#1004).
+
+        Written even when empty is pointless, so it is skipped — but when spools
+        carry a location the catalog has to come along, otherwise the restore
+        has names with nothing to attach them to.
+        """
+        result = await db.execute(select(Location).order_by(Location.name))
+        locations = result.scalars().all()
+        if not locations:
+            return
+
+        files["spools/locations.json"] = {
+            "version": "1.0",
+            "locations": [{"name": loc.name, "identifier": loc.identifier} for loc in locations],
+        }
+
+    async def _collect_custom_fields(self, db: AsyncSession, files: dict):
+        """Collect user-defined custom field definitions.
+
+        Only the definitions — the per-spool values ride along in
+        inventory.json, keyed by ``key``, so a spool and its values restore as
+        one unit.
+        """
+        result = await db.execute(select(CustomField).order_by(CustomField.sort_order, CustomField.name))
+        fields = result.scalars().all()
+        if not fields:
+            return
+
+        files["spools/custom_fields.json"] = {
+            "version": "1.0",
+            "fields": [
+                {
+                    "key": f.key,
+                    "name": f.name,
+                    "field_type": f.field_type,
+                    "options": list(f.options or []),
+                    "sort_order": f.sort_order,
+                }
+                for f in fields
+            ],
+        }
+
+    async def _collect_spool_catalog(self, db: AsyncSession, files: dict):
+        """Collect user-added spool-weight catalog entries.
+
+        The defaults are seeded on every install, so only the hand-added rows
+        are worth carrying — and they have to be, because a spool references its
+        catalog entry and that reference travels by name rather than by id.
+        """
+        result = await db.execute(
+            select(SpoolCatalogEntry).where(SpoolCatalogEntry.is_default.is_(False)).order_by(SpoolCatalogEntry.name)
+        )
+        entries = result.scalars().all()
+        if not entries:
+            return
+
+        files["spools/spool_catalog.json"] = {
+            "version": "1.0",
+            "entries": [{"name": e.name, "weight": e.weight} for e in entries],
+        }
+
     async def _collect_spools(self, db: AsyncSession, files: dict):
         """Collect spool inventory data."""
+        # Catalogs first, and unconditionally: someone can have set up locations
+        # and custom fields before adding a single spool, and losing those on a
+        # restore would mean redoing the setup by hand.
+        await self._collect_locations(db, files)
+        await self._collect_custom_fields(db, files)
+        await self._collect_spool_catalog(db, files)
+
+        # core_weight_catalog_id is an install-local id, so the reference is
+        # written out as the entry it points at.
+        catalog_result = await db.execute(select(SpoolCatalogEntry))
+        catalog_by_id = {e.id: e for e in catalog_result.scalars().all()}
+
         result = await db.execute(select(Spool))
         spools = result.scalars().all()
 
@@ -767,10 +844,18 @@ class GitHubBackupService:
                 "subtype": s.subtype,
                 "color_name": s.color_name,
                 "rgba": s.rgba,
+                # Gradient stops and the visual effect overlay (#1154) — without
+                # these a multi-colour spool restores as a flat single colour.
+                "extra_colors": s.extra_colors,
+                "effect_type": s.effect_type,
                 "brand": s.brand,
                 "label_weight": s.label_weight,
                 "core_weight": s.core_weight,
                 "weight_used": s.weight_used,
+                # The resettable "Total Consumed" anchor (#1390). Without it a
+                # restore shows every spool as having consumed its full history
+                # again.
+                "weight_used_baseline": s.weight_used_baseline,
                 "weight_locked": s.weight_locked,
                 "slicer_filament": s.slicer_filament,
                 "slicer_filament_name": s.slicer_filament_name,
@@ -784,6 +869,32 @@ class GitHubBackupService:
                 "tag_type": s.tag_type,
                 "archived_at": str(s.archived_at) if s.archived_at else None,
                 "created_at": str(s.created_at) if s.created_at else None,
+                "last_used": str(s.last_used) if s.last_used else None,
+                "encode_time": str(s.encode_time) if s.encode_time else None,
+                "last_scale_weight": s.last_scale_weight,
+                "last_weighed_at": str(s.last_weighed_at) if s.last_weighed_at else None,
+                "added_full": s.added_full,
+                # User-defined grouping plus its per-spool low-stock override (#729).
+                "category": s.category,
+                "low_stock_threshold_pct": s.low_stock_threshold_pct,
+                # By name + weight, not by id — see _collect_spool_catalog.
+                "core_weight_catalog": (
+                    {
+                        "name": catalog_by_id[s.core_weight_catalog_id].name,
+                        "weight": catalog_by_id[s.core_weight_catalog_id].weight,
+                    }
+                    if s.core_weight_catalog_id in catalog_by_id
+                    else None
+                ),
+                # Storage location travels as its name, not as location_id: the
+                # id is local to this install and would point at a different
+                # shelf (or nothing) after a restore. The restore resolves the
+                # name back to a catalog row, creating it when missing.
+                "storage_location": s.storage_location,
+                # User-defined custom fields, keyed by the definition's stable
+                # key. Spool.custom_values is loaded eagerly, so this needs no
+                # extra query.
+                "custom_fields": s.custom_fields,
             }
             spool_list.append(spool_data)
 
