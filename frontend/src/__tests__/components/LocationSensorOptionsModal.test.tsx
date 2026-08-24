@@ -1,10 +1,14 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api } from '../../api/client';
 import { LocationSensorOptionsModal } from '../../components/LocationSensorOptionsModal';
 import { render } from '../utils';
+import {
+  defaultLocationSensorDefaults,
+  serializeLocationSensorAlertDefaults,
+} from '../../utils/locationSensorDefaults';
 
 vi.mock('../../api/client', async () => {
   const actual = await vi.importActual<typeof import('../../api/client')>('../../api/client');
@@ -49,7 +53,11 @@ describe('LocationSensorOptionsModal', () => {
     expect(screen.getByText('Battery')).toBeInTheDocument();
   });
 
-  it('saves the entered defaults to localStorage and closes', async () => {
+  // The alert thresholds are server-backed (#2824 review round 4): they seed
+  // the rule written onto each sensor row, so they must not differ per browser
+  // and have to survive a backup/restore. Only the show-on-card default is
+  // still local, because show_on_card is decided per sensor.
+  it('saves the entered alert defaults to the server and closes', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<LocationSensorOptionsModal onClose={onClose} />);
@@ -63,11 +71,34 @@ describe('LocationSensorOptionsModal', () => {
 
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    expect(window.localStorage.setItem).toHaveBeenCalledWith(
-      'bambuddy-location-sensor-auto-add-defaults',
-      expect.stringContaining('"alertAbove":"35"')
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          location_sensor_alert_defaults: expect.stringContaining('"alertAbove":"35"'),
+        })
+      )
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('keeps the show-on-card default in localStorage, without the alert fields', async () => {
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={() => {}} />);
+
+    await screen.findByText('Battery');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() =>
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        'bambuddy-location-sensor-show-on-card-defaults',
+        expect.stringContaining('"temperature":true')
+      )
+    );
+    const written = vi
+      .mocked(window.localStorage.setItem)
+      .mock.calls.find((call) => call[0] === 'bambuddy-location-sensor-show-on-card-defaults')?.[1];
+    expect(written).not.toContain('alertAbove');
+    expect(written).not.toContain('notifyOnAlert');
   });
 
   it('does not offer an "above" threshold for the battery section', async () => {
@@ -81,22 +112,26 @@ describe('LocationSensorOptionsModal', () => {
   });
 
   it('clears a stale saved "above" value for battery on save', async () => {
-    vi.mocked(window.localStorage.getItem).mockReturnValue(
-      JSON.stringify({
-        temperature: { alertAbove: '', alertBelow: '', notifyOnAlert: false, showOnCard: true },
-        humidity: { alertAbove: '', alertBelow: '', notifyOnAlert: false, showOnCard: true },
-        battery: { alertAbove: '95', alertBelow: '15', notifyOnAlert: true, showOnCard: true },
-      })
-    );
+    getSettings.mockResolvedValue({
+      location_sensor_poll_interval: 120,
+      location_sensor_alert_defaults: JSON.stringify({
+        temperature: { alertAbove: '', alertBelow: '', notifyOnAlert: false },
+        humidity: { alertAbove: '', alertBelow: '', notifyOnAlert: false },
+        battery: { alertAbove: '95', alertBelow: '15', notifyOnAlert: true },
+      }),
+    } as never);
     const user = userEvent.setup();
     render(<LocationSensorOptionsModal onClose={() => {}} />);
 
     await screen.findByText('Battery');
     await user.click(screen.getByRole('button', { name: /save/i }));
 
-    expect(window.localStorage.setItem).toHaveBeenCalledWith(
-      'bambuddy-location-sensor-auto-add-defaults',
-      expect.stringContaining('"battery":{"alertAbove":"","alertBelow":"15"')
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          location_sensor_alert_defaults: expect.stringContaining('"battery":{"alertAbove":"","alertBelow":"15"'),
+        })
+      )
     );
   });
 
@@ -133,7 +168,50 @@ describe('LocationSensorOptionsModal', () => {
     );
   });
 
-  it('does not call updateSettings when the poll interval is unchanged', async () => {
+  // Both server-backed fields are seeded into local state by an effect, so a
+  // settings response landing after the user has started typing used to
+  // overwrite the edit — a cleared-and-retyped threshold came out as "3035".
+  // Covers the interval too, which had the same shape before this guard.
+  it('does not overwrite an in-progress edit when the settings response lands late', async () => {
+    let resolveSettings: (value: unknown) => void = () => {};
+    getSettings.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSettings = resolve;
+      }) as never
+    );
+
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={() => {}} />);
+
+    // Form is up on the built-ins; edit before the server has answered.
+    const inputs = screen.getAllByRole('spinbutton');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '35');
+
+    // Resolve and let the query actually propagate before asserting. A bare
+    // waitFor would pass on its first tick — before the response reaches the
+    // effect — and so would succeed even with the guard removed.
+    await act(async () => {
+      resolveSettings({
+        location_sensor_poll_interval: 900,
+        location_sensor_alert_defaults: JSON.stringify({
+          temperature: { alertAbove: '30', alertBelow: '20', notifyOnAlert: false },
+        }),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // The late response must not put the server's 30 back over the typed 35.
+    expect(screen.getAllByRole('spinbutton')[0]).toHaveValue(35);
+  });
+
+  it('does not call updateSettings when nothing on the server side changed', async () => {
+    // Both server-backed fields already match what the form would submit, so
+    // an untouched Save must not issue a PATCH that needs admin rights.
+    getSettings.mockResolvedValue({
+      location_sensor_poll_interval: 120,
+      location_sensor_alert_defaults: serializeLocationSensorAlertDefaults(defaultLocationSensorDefaults()),
+    } as never);
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<LocationSensorOptionsModal onClose={onClose} />);
@@ -162,7 +240,7 @@ describe('LocationSensorOptionsModal', () => {
     // PATCH must leave every local preference untouched — the error toast
     // says nothing was saved, and that has to stay true.
     const writtenKeys = vi.mocked(window.localStorage.setItem).mock.calls.map((call) => call[0]);
-    expect(writtenKeys).not.toContain('bambuddy-location-sensor-auto-add-defaults');
+    expect(writtenKeys).not.toContain('bambuddy-location-sensor-show-on-card-defaults');
     expect(writtenKeys).not.toContain('bambuddy-location-sensor-colorize-values');
     expect(writtenKeys).not.toContain('bambuddy-location-sensor-alert-above-color');
     expect(writtenKeys).not.toContain('bambuddy-location-sensor-alert-below-color');
@@ -231,9 +309,10 @@ describe('LocationSensorOptionsModal', () => {
     expect(updateSensor).toHaveBeenCalledWith(2, expect.not.objectContaining({ name: expect.anything() }));
     expect(onClose).toHaveBeenCalled();
 
-    expect(window.localStorage.setItem).toHaveBeenCalledWith(
-      'bambuddy-location-sensor-auto-add-defaults',
-      expect.stringContaining('"alertAbove":"35"')
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location_sensor_alert_defaults: expect.stringContaining('"alertAbove":"35"'),
+      })
     );
   });
 

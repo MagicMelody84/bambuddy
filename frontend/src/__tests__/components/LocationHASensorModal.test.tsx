@@ -199,6 +199,28 @@ describe('LocationHASensorModal', () => {
     expect(createSensor).toHaveBeenCalledWith(expect.objectContaining({ name: 'Drybox 1 Temp' }));
   });
 
+  it('slices an oversized unit to the column width, like the name', async () => {
+    // The unit is snapshotted from Home Assistant, not typed by the user —
+    // an entity reporting a unit longer than the String(16) column must not
+    // come back as a 422 on a field the form never showed.
+    getSettings.mockResolvedValue(settings());
+    getEntities.mockResolvedValue([
+      { entity_id: 'sensor.drybox_1_temp', friendly_name: 'Drybox 1 Temp', domain: 'sensor', device_class: 'temperature', unit_of_measurement: 'degrees Celsius (integrated)', state: '21.0' },
+    ] as never);
+    getLocationSensors.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    render(<LocationHASensorModal locations={LOCATIONS} onClose={() => {}} />);
+
+    await user.click(await screen.findByText('Drybox 1 Temp'));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(1));
+    expect(createSensor).toHaveBeenCalledWith(
+      expect.objectContaining({ unit: 'degrees Celsius (integrated)'.slice(0, 16) })
+    );
+  });
+
   it('requires a name before saving', async () => {
     getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([
@@ -363,7 +385,9 @@ describe('LocationHASensorModal', () => {
     getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([
       { entity_id: 'sensor.drybox_1_humidity', friendly_name: 'Drybox 1 Humidity', domain: 'sensor', device_class: 'humidity', unit_of_measurement: '%', state: '40' },
-      { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
+      // Oversized unit: the auto-add path must slice it to the String(16)
+      // column just like the primary save does.
+      { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature', domain: 'sensor', device_class: 'temperature', unit_of_measurement: 'degrees Celsius (integrated)', state: '21.0' },
       { entity_id: 'sensor.drybox_1_battery', friendly_name: 'Drybox 1 Battery', domain: 'sensor', device_class: 'battery', unit_of_measurement: '%', state: '90' },
     ] as never);
     getLocationSensors.mockResolvedValue([]);
@@ -384,7 +408,13 @@ describe('LocationHASensorModal', () => {
 
     await waitFor(() => expect(createSensor).toHaveBeenCalledTimes(3));
     expect(createSensor).toHaveBeenNthCalledWith(1, expect.objectContaining({ entity_id: 'sensor.drybox_1_humidity' }));
-    expect(createSensor).toHaveBeenNthCalledWith(2, expect.objectContaining({ entity_id: 'sensor.drybox_1_temperature' }));
+    expect(createSensor).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        entity_id: 'sensor.drybox_1_temperature',
+        unit: 'degrees Celsius (integrated)'.slice(0, 16),
+      })
+    );
     expect(createSensor).toHaveBeenNthCalledWith(3, expect.objectContaining({ entity_id: 'sensor.drybox_1_battery' }));
   });
 
@@ -443,13 +473,17 @@ describe('LocationHASensorModal', () => {
 
   it('applies the saved per-category defaults to auto-added sibling sensors', async () => {
     vi.mocked(window.localStorage.getItem).mockReturnValue(
-      JSON.stringify({
-        temperature: { alertAbove: '30', alertBelow: '', notifyOnAlert: true, showOnCard: true },
-        battery: { alertAbove: '', alertBelow: '15', notifyOnAlert: true, showOnCard: false },
-        humidity: { alertAbove: '', alertBelow: '', notifyOnAlert: false, showOnCard: true },
+      JSON.stringify({ temperature: true, battery: false, humidity: true })
+    );
+    getSettings.mockResolvedValue(
+      settings({
+        location_sensor_alert_defaults: JSON.stringify({
+          temperature: { alertAbove: '30', alertBelow: '', notifyOnAlert: true },
+          battery: { alertAbove: '', alertBelow: '15', notifyOnAlert: true },
+          humidity: { alertAbove: '', alertBelow: '', notifyOnAlert: false },
+        }),
       })
     );
-    getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([
       { entity_id: 'sensor.drybox_1_humidity', friendly_name: 'Drybox 1 Humidity', domain: 'sensor', device_class: 'humidity', unit_of_measurement: '%', state: '40' },
       { entity_id: 'sensor.drybox_1_temperature', friendly_name: 'Drybox 1 Temperature', domain: 'sensor', device_class: 'temperature', unit_of_measurement: '°C', state: '21.0' },
@@ -489,14 +523,16 @@ describe('LocationHASensorModal', () => {
   });
 
   it('prefills the form from saved category defaults when picking an entity while creating', async () => {
-    vi.mocked(window.localStorage.getItem).mockReturnValue(
-      JSON.stringify({
-        temperature: { alertAbove: '', alertBelow: '', notifyOnAlert: false, showOnCard: true },
-        humidity: { alertAbove: '70', alertBelow: '20', notifyOnAlert: true, showOnCard: false },
-        battery: { alertAbove: '', alertBelow: '', notifyOnAlert: false, showOnCard: true },
+    // Alert thresholds come from the server setting; only show-on-card is
+    // still per-browser (#2824 review round 4).
+    vi.mocked(window.localStorage.getItem).mockReturnValue(JSON.stringify({ humidity: false }));
+    getSettings.mockResolvedValue(
+      settings({
+        location_sensor_alert_defaults: JSON.stringify({
+          humidity: { alertAbove: '70', alertBelow: '20', notifyOnAlert: true },
+        }),
       })
     );
-    getSettings.mockResolvedValue(settings());
     getEntities.mockResolvedValue([
       { entity_id: 'sensor.drybox_1_humidity', friendly_name: 'Drybox 1 Humidity', domain: 'sensor', device_class: 'humidity', unit_of_measurement: '%', state: '40' },
     ] as never);

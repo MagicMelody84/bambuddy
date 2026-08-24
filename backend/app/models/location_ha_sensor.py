@@ -1,9 +1,15 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.core.database import Base
+
+# Width of the last_state column. The poller truncates what it persists to
+# this, because a numeric entity can start reporting free text (an enum, an
+# error string) longer than the column — SQLite stores it anyway, but
+# PostgreSQL rejects the row and takes the whole poll batch's commit with it.
+LAST_STATE_MAX_LENGTH = 64
 
 
 class LocationHASensor(Base):
@@ -16,6 +22,14 @@ class LocationHASensor(Base):
     """
 
     __tablename__ = "location_ha_sensors"
+    # The API rejects a duplicate (location, entity) binding, but that check is
+    # read-then-insert — two concurrent creates can both pass it. This index is
+    # the backstop that turns the loser into an IntegrityError instead of a
+    # second row silently shadowing the first. create_all() only covers fresh
+    # installs; upgraded databases get it from
+    # _migrate_location_ha_sensor_unique_binding in core/database.py, which
+    # must create the same index under the same name.
+    __table_args__ = (Index("uq_location_ha_sensors_location_entity", "location_id", "entity_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     location_id: Mapped[int] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"), index=True)
@@ -49,7 +63,7 @@ class LocationHASensor(Base):
 
     # Last poll result. Persisted so a restart doesn't blank the card until the
     # first poll lands, and so notifications only fire on a real transition.
-    last_state: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_state: Mapped[str | None] = mapped_column(String(LAST_STATE_MAX_LENGTH), nullable=True)
     last_changed: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

@@ -93,6 +93,45 @@ class TestNotificationEdge:
         assert notify.on_location_ha_sensor_alert.await_count == 1
 
 
+class TestLastStatePersistence:
+    """What goes into last_state must fit its String(64) column.
+
+    A numeric entity can start reporting free text longer than the column.
+    SQLite stores it anyway, but PostgreSQL rejects the row — and since
+    _apply commits the whole pass at once, one such sensor would sink every
+    sensor's update on every tick.
+    """
+
+    async def _apply(self, manager, sensor, state):
+        db = AsyncMock()
+        with patch("backend.app.services.notification_service.notification_service", AsyncMock()):
+            await manager._apply(db, [sensor], {sensor.entity_id: {"state": state}})
+
+    async def test_a_long_text_state_is_cut_to_the_column_width(self):
+        manager = LocationHASensorManager()
+        sensor = _sensor(last_changed=None, last_checked=None)
+        long_state = "x" * 500
+
+        await self._apply(manager, sensor, long_state)
+
+        assert sensor.last_state == "x" * 64
+        # The cache keeps the full state — only what is persisted is cut.
+        assert manager.get_reading(sensor.id).state == long_state
+
+    async def test_an_unchanged_long_state_is_not_a_change_on_every_poll(self):
+        manager = LocationHASensorManager()
+        sensor = _sensor(last_changed=None, last_checked=None)
+        long_state = "x" * 500
+
+        await self._apply(manager, sensor, long_state)
+        first_changed = sensor.last_changed
+        await self._apply(manager, sensor, long_state)
+
+        # Comparing the stored (cut) value against the raw state would see a
+        # difference on every poll and churn last_changed forever.
+        assert sensor.last_changed == first_changed
+
+
 class TestPollLoopSurvival:
     """The loop must outlive a transient database error (#2824 review).
 
