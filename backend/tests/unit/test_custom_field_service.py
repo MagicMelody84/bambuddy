@@ -12,12 +12,14 @@ from backend.app.services.custom_field_service import (
     SUPPORTED_FIELD_TYPES,
     apply_values,
     coerce_value,
+    normalize_explicit_key,
     normalize_field_key,
     normalize_field_name,
     normalize_field_type,
     normalize_options,
     parse_range,
     serialize_values,
+    slugify_key,
     spoolman_extra_key,
     spoolman_field_type,
     spoolman_value,
@@ -101,6 +103,40 @@ class TestKeyNormalization:
         key = normalize_field_key("a" * 49 + " b")
         assert len(key) <= 50
         assert not key.endswith("_")
+
+
+class TestExplicitKey:
+    """The key is its own input because the name is a display label.
+
+    A name written in Chinese, Cyrillic or Arabic derives to a digest, which is
+    fine as a fallback but useless to type into an API call — so the create form
+    lets the key be given directly.
+    """
+
+    def test_a_typed_key_is_slugified_not_rejected(self):
+        assert normalize_explicit_key("Customer ID") == "customer_id"
+        assert normalize_explicit_key("  KUNDE  ") == "kunde"
+        assert normalize_explicit_key("charge-2026") == "charge_2026"
+
+    def test_a_key_with_nothing_sluggable_is_refused(self):
+        # Substituting a digest here would defeat the point of typing one.
+        for bad in ("客户", "---", "   ", "\u0416"):
+            with pytest.raises(ValueError):
+                normalize_explicit_key(bad)
+
+    def test_control_characters_are_stripped_from_a_typed_key(self):
+        assert normalize_explicit_key("kun\x00de") == "kunde"
+
+    def test_a_typed_key_is_capped_at_the_column_width(self):
+        key = normalize_explicit_key("k" * 80)
+        assert len(key) == 50
+
+    def test_slugify_matches_what_the_name_derivation_uses(self):
+        # The frontend previews the key with the same rule; if these diverge the
+        # preview lies about what will be stored.
+        assert slugify_key("Kunde / Projekt") == "kunde_projekt"
+        assert slugify_key("客户") == ""
+        assert normalize_field_key("Kunde / Projekt") == slugify_key("Kunde / Projekt")
 
 
 class TestOptions:

@@ -65,6 +65,7 @@ describe('CustomFieldsModal', () => {
   it('lists existing fields with their options and usage count', async () => {
     render(<CustomFieldsModal open onClose={vi.fn()} />);
     expect(await screen.findByText('Kunde')).toBeTruthy();
+    expect(screen.getByText('kunde')).toBeTruthy();
     expect(screen.getByText('Acme, Globex')).toBeTruthy();
     expect(screen.getByText('customFields.types.choice')).toBeTruthy();
     expect(screen.getByText('3')).toBeTruthy();
@@ -83,8 +84,93 @@ describe('CustomFieldsModal', () => {
     await waitFor(() =>
       expect(mockedApi.createCustomField).toHaveBeenCalledWith({
         name: 'Notiz',
+        // Derived from the name, since the key input was left untouched.
+        key: 'notiz',
         field_type: 'text',
         options: [],
+      }),
+    );
+  });
+
+  it('fills the key from the name until the user edits it', async () => {
+    render(<CustomFieldsModal open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('customFields.add'));
+
+    const nameInput = screen.getByLabelText('customFields.name');
+    const keyInput = screen.getByLabelText('customFields.key') as HTMLInputElement;
+
+    fireEvent.change(nameInput, { target: { value: 'Kunde / Projekt' } });
+    expect(keyInput.value).toBe('kunde_projekt');
+
+    // Once touched it stops following the name — a deliberate key must not be
+    // overwritten by the next keystroke in the name field.
+    fireEvent.change(keyInput, { target: { value: 'customer' } });
+    fireEvent.change(nameInput, { target: { value: 'Kunde / Projekt / 2026' } });
+    expect(keyInput.value).toBe('customer');
+
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() =>
+      expect(mockedApi.createCustomField).toHaveBeenCalledWith({
+        name: 'Kunde / Projekt / 2026',
+        key: 'customer',
+        field_type: 'text',
+        options: [],
+      }),
+    );
+  });
+
+  it('leaves the key empty for a name with no latin characters', async () => {
+    // This is the case the input exists for: the backend would otherwise
+    // derive a digest that nobody can type into an API call.
+    render(<CustomFieldsModal open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('customFields.add'));
+
+    fireEvent.change(screen.getByLabelText('customFields.name'), { target: { value: '客户' } });
+    const keyInput = screen.getByLabelText('customFields.key') as HTMLInputElement;
+    expect(keyInput.value).toBe('');
+
+    fireEvent.change(keyInput, { target: { value: 'customer' } });
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() =>
+      expect(mockedApi.createCustomField).toHaveBeenCalledWith({
+        name: '客户',
+        key: 'customer',
+        field_type: 'text',
+        options: [],
+      }),
+    );
+  });
+
+  it('omits the key when it was left empty, so the backend derives one', async () => {
+    render(<CustomFieldsModal open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByText('customFields.add'));
+    fireEvent.change(screen.getByLabelText('customFields.name'), { target: { value: '客户' } });
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() =>
+      expect(mockedApi.createCustomField).toHaveBeenCalledWith({
+        name: '客户',
+        field_type: 'text',
+        options: [],
+      }),
+    );
+  });
+
+  it('shows the key read-only when editing and never sends it', async () => {
+    render(<CustomFieldsModal open onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByLabelText('Edit Kunde'));
+
+    const keyInput = screen.getByLabelText('customFields.key') as HTMLInputElement;
+    expect(keyInput.value).toBe('kunde');
+    expect(keyInput.disabled).toBe(true);
+    expect(screen.getByText('customFields.keyLocked')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('customFields.name'), { target: { value: 'Auftraggeber' } });
+    fireEvent.click(screen.getByText('common.save'));
+    await waitFor(() =>
+      expect(mockedApi.updateCustomField).toHaveBeenCalledWith(1, {
+        name: 'Auftraggeber',
+        field_type: 'choice',
+        options: ['Acme', 'Globex'],
       }),
     );
   });
@@ -127,6 +213,7 @@ describe('CustomFieldsModal', () => {
     await waitFor(() =>
       expect(mockedApi.createCustomField).toHaveBeenCalledWith({
         name: 'Charge',
+        key: 'charge',
         field_type: 'choice',
         options: ['A'],
       }),
@@ -149,6 +236,7 @@ describe('CustomFieldsModal', () => {
     await waitFor(() =>
       expect(mockedApi.createCustomField).toHaveBeenCalledWith({
         name: 'Charge',
+        key: 'charge',
         field_type: 'choice',
         options: ['A'],
       }),

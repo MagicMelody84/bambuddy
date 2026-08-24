@@ -145,6 +145,7 @@ const DE_COGNATES = [
   'Auto',  // calibrationMode_auto — German UI uses the loanword (matches BambuStudio DE)
   'Name', 'Status', 'Tag', 'Tags', 'Online', 'Offline', 'Standard', 'Modus',
   'Stop', 'Reset', 'Test', 'Code', 'Token', 'Server', 'Port', 'Bug', 'Job',
+  'Key',  // custom fields — the German UI uses the loanword, like Token/Code above
   'Bambu Cloud', 'Orca Cloud',  // brand names — same in every locale
   'AMS Filament Backup',  // Bambu Lab product/firmware feature name
 

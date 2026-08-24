@@ -820,7 +820,8 @@ async def create_custom_field(
 ):
     """Create a custom field definition."""
     try:
-        key = normalize_field_key(data.name)
+        # An explicit key wins; without one it is derived from the name.
+        key = data.key or normalize_field_key(data.name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

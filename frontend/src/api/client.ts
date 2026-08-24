@@ -6532,7 +6532,7 @@ export const api = {
     request<{ status: string }>(`/inventory/locations/${id}`, { method: 'DELETE' }),
   getCustomFields: () =>
     request<CustomFieldDef[]>('/inventory/custom-fields'),
-  createCustomField: (data: { name: string; field_type?: string; options?: string[]; sort_order?: number }) =>
+  createCustomField: (data: { name: string; key?: string; field_type?: string; options?: string[]; sort_order?: number }) =>
     request<CustomFieldDef>('/inventory/custom-fields', { method: 'POST', body: JSON.stringify(data) }),
   updateCustomField: (id: number, data: { name?: string; field_type?: string; options?: string[]; sort_order?: number }) =>
     request<CustomFieldDef>(`/inventory/custom-fields/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

@@ -28,6 +28,22 @@ const FIELD_TYPES = [
 type FieldType = (typeof FIELD_TYPES)[number];
 
 /**
+ * Same rule as custom_field_service.slugify_key on the backend — lowercase
+ * ASCII, everything else collapsed to underscores. Kept in step with it so the
+ * preview shown while typing is what actually gets stored. A name with no latin
+ * characters slugs to '', and the field is then left for the user to fill in.
+ */
+function slugifyKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 50)
+    .replace(/_+$/g, '');
+}
+
+/**
  * CRUD for user-defined spool fields. Same shape as LocationsModal — list plus
  * an inner editor — with an option editor on top, since a select field is only
  * useful once it has values to choose from.
@@ -41,6 +57,10 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
   const [editing, setEditing] = useState<CustomFieldDef | null>(null);
   const [name, setName] = useState('');
   const [fieldType, setFieldType] = useState<FieldType>('text');
+  const [key, setKey] = useState('');
+  // Once the user edits the key it stops following the name, so a deliberate
+  // key is not overwritten by the next keystroke in the name field.
+  const [keyTouched, setKeyTouched] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
   const [optionDraft, setOptionDraft] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<CustomFieldDef | null>(null);
@@ -66,9 +86,12 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
       // other type rather than storing something the form never shows.
       const payload = { name: trimmed, field_type: fieldType, options: fieldType === 'choice' ? options : [] };
       if (editing) {
+        // The key is fixed after creation — it links the stored values, the
+        // Spoolman entries and any backup — so it is never sent on an update.
         return api.updateCustomField(editing.id, payload);
       }
-      return api.createCustomField(payload);
+      const trimmedKey = key.trim();
+      return api.createCustomField(trimmedKey ? { ...payload, key: trimmedKey } : payload);
     },
     onSuccess: () => {
       showToast(t(editing ? 'customFields.updated' : 'customFields.created'), 'success');
@@ -77,6 +100,8 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
       setEditing(null);
       setName('');
       setFieldType('text');
+      setKey('');
+      setKeyTouched(false);
       setOptions([]);
       setOptionDraft('');
     },
@@ -101,6 +126,8 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
     setEditing(null);
     setName('');
     setFieldType('text');
+    setKey('');
+    setKeyTouched(false);
     setOptions([]);
     setOptionDraft('');
     setEditorOpen(true);
@@ -109,6 +136,8 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
   const openEdit = (field: CustomFieldDef) => {
     setEditing(field);
     setName(field.name);
+    setKey(field.key);
+    setKeyTouched(true);
     setFieldType(FIELD_TYPES.includes(field.field_type as FieldType) ? (field.field_type as FieldType) : 'text');
     setOptions([...field.options]);
     setOptionDraft('');
@@ -121,6 +150,8 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
     setEditing(null);
     setName('');
     setFieldType('text');
+    setKey('');
+    setKeyTouched(false);
     setOptions([]);
     setOptionDraft('');
   }, [saveMutation.isPending]);
@@ -178,7 +209,7 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
         }}
       />
       <div
-        className="relative w-full max-w-2xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+        className="relative w-full max-w-3xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalTitleId}
@@ -219,21 +250,25 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="border-b border-bambu-dark-tertiary text-left text-bambu-gray">
-                  <th className="px-4 py-3 font-medium w-1/4">{t('customFields.name')}</th>
-                  <th className="px-4 py-3 font-medium w-44">{t('customFields.type')}</th>
-                  <th className="px-4 py-3 font-medium">{t('customFields.options')}</th>
-                  <th className="px-4 py-3 font-medium text-right w-24">{t('customFields.spools')}</th>
-                  <th className="px-4 py-3 font-medium text-right w-32">{t('common.actions')}</th>
+                  <th className="px-3 py-3 font-medium w-[18%]">{t('customFields.name')}</th>
+                  <th className="px-3 py-3 font-medium w-[20%]">{t('customFields.key')}</th>
+                  <th className="px-3 py-3 font-medium w-[16%]">{t('customFields.type')}</th>
+                  <th className="px-3 py-3 font-medium">{t('customFields.options')}</th>
+                  <th className="px-3 py-3 font-medium text-right w-20">{t('customFields.spools')}</th>
+                  <th className="px-3 py-3 font-medium text-right w-24">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {fields.map((field) => (
                   <tr key={field.id} className="border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30">
-                    <td className="px-4 py-3 text-white font-medium truncate">{field.name}</td>
-                    <td className="px-4 py-3 text-bambu-gray truncate">{t(`customFields.types.${field.field_type}`)}</td>
-                    <td className="px-4 py-3 text-bambu-gray truncate">{field.options.join(', ')}</td>
-                    <td className="px-4 py-3 text-right text-bambu-gray">{field.value_count}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-white font-medium truncate">{field.name}</td>
+                    {/* Shown because this is what an API call addresses the
+                        value by — the name is only a display label. */}
+                    <td className="px-3 py-3 text-bambu-gray font-mono text-xs truncate" title={field.key}>{field.key}</td>
+                    <td className="px-3 py-3 text-bambu-gray truncate">{t(`customFields.types.${field.field_type}`)}</td>
+                    <td className="px-3 py-3 text-bambu-gray truncate">{field.options.join(', ')}</td>
+                    <td className="px-3 py-3 text-right text-bambu-gray">{field.value_count}</td>
+                    <td className="px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
@@ -292,9 +327,34 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
                 className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green mb-4"
                 placeholder={t('customFields.namePlaceholder')}
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!keyTouched) setKey(slugifyKey(e.target.value));
+                }}
                 autoFocus
               />
+
+              <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-key">
+                {t('customFields.key')}
+              </label>
+              <input
+                id="custom-field-key"
+                type="text"
+                maxLength={50}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono focus:outline-none focus:border-bambu-green disabled:opacity-50"
+                placeholder={t('customFields.keyPlaceholder')}
+                value={key}
+                // Fixed after creation: it links the stored values, the Spoolman
+                // entries and any backup, so the editor only ever shows it.
+                disabled={Boolean(editing)}
+                onChange={(e) => {
+                  setKeyTouched(true);
+                  setKey(e.target.value);
+                }}
+              />
+              <p className="text-xs text-bambu-gray mb-4 mt-1">
+                {editing ? t('customFields.keyLocked') : t('customFields.keyHint')}
+              </p>
 
               <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-type">
                 {t('customFields.type')}

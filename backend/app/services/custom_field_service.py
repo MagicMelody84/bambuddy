@@ -22,7 +22,10 @@ from backend.app.models.spool_custom_field_value import SpoolCustomFieldValue
 
 logger = logging.getLogger(__name__)
 
-DUPLICATE_FIELD_KEY = "A custom field with this name already exists"
+# Names may repeat; keys may not. Since the key can be typed in directly, the
+# message names the key rather than the field — two differently named fields
+# can collide here and "this name already exists" would just look wrong.
+DUPLICATE_FIELD_KEY = "A custom field with this key already exists"
 
 # What a field can hold. Deliberately the same set, in the same order, as
 # Spoolman's own extra-field types, so a value means the same thing on both
@@ -50,6 +53,8 @@ TYPES_WITH_OPTIONS = frozenset({"choice"})
 
 RANGE_TYPES = frozenset({"integer_range", "float_range"})
 
+# Matches the VARCHAR(50) on custom_fields.key.
+MAX_KEY_LENGTH = 50
 MAX_OPTIONS = 50
 MAX_OPTION_LENGTH = 100
 MAX_VALUE_LENGTH = 255
@@ -86,22 +91,47 @@ def normalize_field_name(name: str) -> str:
     return trimmed
 
 
-def normalize_field_key(name: str) -> str:
-    """Derive the stable slug from a display name.
+def slugify_key(value: str) -> str:
+    """Lowercase ASCII slug, non-alphanumerics collapsed to underscores.
 
-    Lowercase ASCII, non-alphanumerics collapsed to underscores. The key ends up
-    in a Spoolman `extra` key, so it has to stay ASCII — which means a name
-    written entirely in Arabic, Cyrillic, Chinese, Japanese or Korean slugs to
-    nothing. Those fall back to a digest of the name rather than being refused:
-    the app ships in thirteen languages, and rejecting "客户" would make the
-    feature unusable for most of them. The digest is deterministic, so the same
-    name always yields the same key.
+    Returns "" when nothing usable survives. The frontend runs the same rule to
+    preview the key while the name is typed, so the two must stay in step.
+    """
+    return _KEY_SANITIZE_RE.sub("_", value.strip().lower()).strip("_")[:MAX_KEY_LENGTH].rstrip("_")
+
+
+def normalize_explicit_key(key: str) -> str:
+    """Normalise a key the user typed in themselves.
+
+    Slugified rather than rejected outright, so "Customer ID" becomes
+    `customer_id` instead of an error — but a key with nothing sluggable left
+    (all punctuation, or written in a script that does not survive the ASCII
+    rule) is refused, because silently substituting a digest is exactly what
+    typing a key is meant to avoid.
+    """
+    slug = slugify_key(strip_control_chars(key))
+    if not slug:
+        raise ValueError("key must contain at least one latin letter or digit")
+    return slug
+
+
+def normalize_field_key(name: str) -> str:
+    """Derive the stable key from a display name, for callers that give no key.
+
+    The key ends up in a Spoolman `extra` key, so it has to stay ASCII — which
+    means a name written entirely in Arabic, Cyrillic, Chinese, Japanese or
+    Korean slugs to nothing. Those fall back to a digest of the name rather than
+    being refused: the app ships in thirteen languages, and rejecting "客户"
+    would make the feature unusable for most of them. A digest is unusable in an
+    API call though, which is why the create form offers the key as its own
+    input — this is only the fallback for when it is left empty. The digest is
+    deterministic, so the same name always yields the same key.
     """
     normalized = normalize_field_name(name)
-    slug = _KEY_SANITIZE_RE.sub("_", normalized.lower()).strip("_")
+    slug = slugify_key(normalized)
     if not slug:
         return "field_" + hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
-    return slug[:50].rstrip("_")
+    return slug
 
 
 def normalize_field_type(field_type: str | None) -> str:
