@@ -55,6 +55,7 @@ from backend.app.services.custom_field_service import (
     get_definitions,
     normalize_field_key,
     normalize_options,
+    validate_values,
 )
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
@@ -1541,14 +1542,29 @@ async def create_spool(
         payload = await prepare_internal_spool_payload(db, raw, set(spool_data.model_fields_set))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Checked before the spool row is committed, not after it: applying the
+    # values needs an id and so has to come later, but rejecting them then
+    # would answer 400 for a spool that already exists — and the client, told
+    # its create failed, retries into a duplicate. Validation needs no id, so
+    # it moves up here and the write below only re-runs it.
+    definitions = await get_definitions(db) if custom_values else []
+    if custom_values:
+        try:
+            validate_values(custom_values, definitions)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     spool = Spool(**payload)
     db.add(spool)
     await db.commit()
     await db.refresh(spool)
     if custom_values:
         try:
-            await apply_values(db, spool, custom_values, await get_definitions(db))
+            await apply_values(db, spool, custom_values, definitions)
         except ValueError as exc:
+            # Only reachable if a definition changed between the check above
+            # and this write; the spool itself stays, since it is valid.
             await db.rollback()
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         await db.commit()
@@ -1580,13 +1596,22 @@ async def bulk_create_spools(
         payload = await prepare_internal_spool_payload(db, raw, fields_set)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Same reason as create_spool: rejecting the values after the commit would
+    # leave `quantity` orphaned spools behind a 400.
+    definitions = await get_definitions(db) if custom_values else []
+    if custom_values:
+        try:
+            validate_values(custom_values, definitions)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     for _ in range(data.quantity):
         spool = Spool(**payload)
         db.add(spool)
         spools.append(spool)
     await db.commit()
     if custom_values:
-        definitions = await get_definitions(db)
         try:
             for spool in spools:
                 await apply_values(db, spool, custom_values, definitions)

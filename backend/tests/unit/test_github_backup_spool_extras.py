@@ -460,3 +460,57 @@ async def test_overwriting_an_existing_spool_updates_the_new_columns_too(maker, 
         assert rows[0].category == "Produktion"
         assert rows[0].extra_colors == "ec984c,6cd4bc"
     await engine2.dispose()
+
+
+async def test_a_hostile_custom_field_definition_is_normalised_not_trusted(maker, tmp_path):
+    """A backup is a file from another machine, so its field definitions get
+    the same treatment a newly created one would.
+
+    An unbounded key is a hard error on PostgreSQL's VARCHAR(50) and ends up
+    in a Spoolman API path via spoolman_extra_key(); an unbounded name hits
+    VARCHAR(100) the same way; and a sort_order past INTEGER overflows there
+    rather than sorting oddly.
+    """
+    files = {
+        "spools/custom_fields.json": {
+            "version": "1.0",
+            "fields": [
+                {
+                    "key": "../../admin/" + "x" * 200,
+                    "name": "N" * 400,
+                    "field_type": "text",
+                    "options": [],
+                    "sort_order": 2**40,
+                }
+            ],
+        },
+        "spools/inventory.json": {"version": "1.0", "spools": []},
+    }
+
+    engine2, maker2 = await _restore_into(tmp_path, "hostile_defs", files)
+    async with maker2() as db:
+        definition = (await db.execute(select(CustomField))).scalars().one()
+        assert len(definition.key) <= 50
+        # Slugged, so nothing that reads as a path segment survives.
+        assert "/" not in definition.key and ".." not in definition.key
+        assert len(definition.name) <= 100
+        assert definition.sort_order == 0
+    await engine2.dispose()
+
+
+async def test_a_normal_backup_keeps_its_keys_and_sort_order_untouched(maker, tmp_path):
+    """The normalisation above must be a no-op for a backup this app wrote —
+    the key is what the spools' values are keyed by, so changing it would
+    silently drop them."""
+    async with maker() as db:
+        await _seed(db)
+        files = await _collect(db)
+
+    engine2, maker2 = await _restore_into(tmp_path, "normal_defs", files)
+    async with maker2() as db:
+        defs = {d.key: d for d in (await db.execute(select(CustomField))).scalars().all()}
+        assert sorted(defs) == ["kunde", "lagen"]
+        spool = (await db.execute(select(Spool))).scalars().one()
+        # The values still find their definitions.
+        assert spool.custom_fields == {"kunde": "Acme", "lagen": "12"}
+    await engine2.dispose()

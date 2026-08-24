@@ -57,9 +57,11 @@ from backend.app.models.user import User
 from backend.app.schemas.github_backup import RestoreCategory
 from backend.app.schemas.spool import normalize_effect_type, normalize_extra_colors
 from backend.app.services.custom_field_service import (
+    MAX_SORT_ORDER,
     apply_values,
     get_definitions,
     normalize_field_key,
+    normalize_field_name,
     normalize_field_type,
     normalize_options,
 )
@@ -1550,7 +1552,16 @@ class GitHubRestoreService:
                 continue
             raw_key = entry.get("key")
             try:
-                key = raw_key.strip() if isinstance(raw_key, str) and raw_key.strip() else normalize_field_key(name)
+                # The backed-up key goes through the same slug rules as a
+                # newly created one rather than being trusted as written. For a
+                # key this app produced that is a no-op (normalize_field_key is
+                # idempotent over its own output), but a hand-edited backup
+                # would otherwise put arbitrary text into a VARCHAR(50) column
+                # and, via spoolman_extra_key(), into a Spoolman API path.
+                key = normalize_field_key(raw_key if isinstance(raw_key, str) and raw_key.strip() else name)
+                # Held to the same limit the API enforces (String(100)) — a
+                # longer name is a hard error on PostgreSQL, not a truncation.
+                field_name = normalize_field_name(name)[:100]
                 field_type = normalize_field_type(entry.get("field_type"))
                 options = normalize_options(entry.get("options") or [], field_type)
             except ValueError:
@@ -1560,10 +1571,12 @@ class GitHubRestoreService:
             sort_order = entry.get("sort_order")
             definition = CustomField(
                 key=key,
-                name=name.strip(),
+                name=field_name,
                 field_type=field_type,
                 options=options,
-                sort_order=sort_order if isinstance(sort_order, int) and sort_order >= 0 else 0,
+                # Clamped to the API's own ceiling: an out-of-range value is a
+                # 500 on PostgreSQL's INTEGER rather than an odd sort position.
+                sort_order=sort_order if isinstance(sort_order, int) and 0 <= sort_order <= MAX_SORT_ORDER else 0,
             )
             db.add(definition)
             existing[key] = definition
