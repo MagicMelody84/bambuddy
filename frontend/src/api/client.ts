@@ -1417,6 +1417,11 @@ export interface AppSettings {
   // Inventory forecasting global lead time
   forecast_global_lead_time_days: number;
   location_sensor_poll_interval: number;
+  // JSON map of sensor category → {alertAbove, alertBelow, notifyOnAlert},
+  // seeding new storage-location sensor bindings. Empty = built-in defaults.
+  // Server-backed so two admins seed the same alert rules and a restore
+  // brings them back; see utils/locationSensorDefaults.ts.
+  location_sensor_alert_defaults: string;
 }
 
 export type AppSettingsUpdate = Partial<AppSettings>;

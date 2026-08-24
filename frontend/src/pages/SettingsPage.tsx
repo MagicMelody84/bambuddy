@@ -181,7 +181,6 @@ const getStorageColor = (key: string, index: number) =>
 const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
   temperature: 0,
   humidity: 1,
-  moisture: 1,
   battery: 2,
 };
 

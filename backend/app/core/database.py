@@ -4445,6 +4445,13 @@ async def run_migrations(conn):
     # DEFAULT_TEMPLATES re-seed.
     await _migrate_rename_ha_sensor_alert_template(conn)
 
+    # Migration: back the one-binding-per-(location, entity) rule with a unique
+    # index (#2824). The API's duplicate check is read-then-insert, so two
+    # concurrent creates could both pass it; the index turns the loser into an
+    # IntegrityError the route maps back to the same 400. create_all() adds it
+    # on fresh installs only — this covers databases whose table predates it.
+    await _migrate_location_ha_sensor_unique_binding(conn)
+
 
 async def _migrate_rename_ha_sensor_alert_template(conn) -> None:
     """Rename the ha_sensor_alert template to "Printer Sensor Alert" (#2824).
@@ -4457,6 +4464,34 @@ async def _migrate_rename_ha_sensor_alert_template(conn) -> None:
     await conn.execute(
         text("UPDATE notification_templates SET name = :new WHERE event_type = :et AND name = :old"),
         {"new": "Printer Sensor Alert", "et": "ha_sensor_alert", "old": "Home Assistant Sensor Alert"},
+    )
+
+
+async def _migrate_location_ha_sensor_unique_binding(conn) -> None:
+    """Unique index on location_ha_sensors (location_id, entity_id) (#2824).
+
+    Same name and shape as the Index in the model, so fresh installs (which
+    get it from create_all) and upgraded ones end up identical.
+
+    Rows that already violate it — duplicates slipped in through the pre-index
+    race — are collapsed to the oldest row first, because CREATE UNIQUE INDEX
+    refuses to build over duplicates and _safe_execute would re-raise that,
+    aborting startup. The oldest row wins: it is the one the card and the
+    poller cache were already keyed on.
+    """
+    from sqlalchemy import text
+
+    async with conn.begin_nested():
+        await conn.execute(
+            text(
+                "DELETE FROM location_ha_sensors WHERE id NOT IN ("
+                "SELECT MIN(id) FROM location_ha_sensors GROUP BY location_id, entity_id)"
+            )
+        )
+    await _safe_execute(
+        conn,
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_location_ha_sensors_location_entity "
+        "ON location_ha_sensors (location_id, entity_id)",
     )
 
 

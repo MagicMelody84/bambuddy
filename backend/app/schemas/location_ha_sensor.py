@@ -17,8 +17,14 @@ class LocationHASensorBase(BaseModel):
     unit: str | None = Field(default=None, max_length=16)
 
     alert_state: Literal["on", "off"] | None = None
-    alert_above: float | None = None
-    alert_below: float | None = None
+    # allow_inf_nan=False: pydantic's lax mode coerces the strings "nan"/"inf"
+    # into real NaN/Infinity floats. A NaN threshold satisfies the "notify
+    # needs an alert condition" rule below yet every comparison against it is
+    # False — a notification that can never fire — and it skips the
+    # below-vs-above ordering check the same way. Responses serialize NaN as
+    # null, so the UI would show an empty field over a poisoned row.
+    alert_above: float | None = Field(default=None, allow_inf_nan=False)
+    alert_below: float | None = Field(default=None, allow_inf_nan=False)
 
     notify_on_alert: bool = False
     show_on_card: bool = True
@@ -65,14 +71,24 @@ class LocationHASensorUpdate(BaseModel):
     device_class: str | None = Field(default=None, max_length=32)
     unit: str | None = Field(default=None, max_length=16)
     alert_state: Literal["on", "off"] | None = None
-    alert_above: float | None = None
-    alert_below: float | None = None
+    # Same allow_inf_nan story as the base schema. The route's merged-row
+    # re-validation would catch these too, but rejecting them here keeps the
+    # error attached to the offending field.
+    alert_above: float | None = Field(default=None, allow_inf_nan=False)
+    alert_below: float | None = Field(default=None, allow_inf_nan=False)
     notify_on_alert: bool | None = None
     show_on_card: bool | None = None
     sort_order: int | None = Field(default=None, ge=0, le=999)
 
 
 class LocationHASensorResponse(LocationHASensorBase):
+    # Reads must tolerate what writes now reject: a row that got a NaN/inf
+    # threshold in before allow_inf_nan landed would otherwise fail response
+    # validation and 500 the whole list for one legacy row. Serialization
+    # turns them into null, which is also what the edit form should show.
+    alert_above: float | None = None
+    alert_below: float | None = None
+
     id: int
     last_state: str | None = None
     last_changed: datetime | None = None

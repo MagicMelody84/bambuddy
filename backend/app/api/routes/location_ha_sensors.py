@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
@@ -40,14 +41,18 @@ _UPDATE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_UPDATE)
 _DELETE = RequirePermissionIfAuthEnabled(Permission.SMART_PLUGS_DELETE)
 
 
-# Mirrors categoryFor() in LocationHASensorModal.tsx — "moisture" is Home
-# Assistant's device class for some humidity sensors and counts as the same
-# category. A device class outside these three has no category and is not
-# subject to the one-per-location rule below.
+# Mirrors categoryFor() in LocationHASensorModal.tsx, which also gates that
+# dialog's entity picker. A device class outside these three has no category
+# and is not subject to the one-per-location rule below.
+#
+# "moisture" is deliberately not mapped to humidity: it is Home Assistant's
+# binary wet/dry class, so a leak detector would otherwise block a real
+# hygrometer on the same location, and it could not carry the category's
+# thresholds anyway — the schema rejects alert_above/alert_below for
+# kind="binary".
 _CATEGORY_BY_DEVICE_CLASS = {
     "temperature": "temperature",
     "humidity": "humidity",
-    "moisture": "humidity",
     "battery": "battery",
 }
 
@@ -208,7 +213,14 @@ async def create_location_ha_sensor(
 
     sensor = LocationHASensor(**data.model_dump())
     db.add(sensor)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # The duplicate check above is read-then-insert, so a concurrent
+        # create for the same (location, entity) can get past it — the unique
+        # index is the backstop, and its loser should read like the pre-check.
+        await db.rollback()
+        raise HTTPException(400, f"{data.entity_id} is already bound to this location") from None
     await db.refresh(sensor)
     logger.info("Bound HA entity %s to location %s as '%s'", sensor.entity_id, sensor.location_id, sensor.name)
 
@@ -277,7 +289,16 @@ async def update_location_ha_sensor(
 
     for field, value in updates.items():
         setattr(sensor, field, value)
-    await db.commit()
+    # Read before commit: after a rollback the instance is expired, and
+    # touching its attributes from async code raises MissingGreenlet.
+    entity_id = sensor.entity_id
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Same backstop as create: the clash check above races a concurrent
+        # write, and the unique index decides who loses.
+        await db.rollback()
+        raise HTTPException(400, f"{entity_id} is already bound to this location") from None
     await db.refresh(sensor)
 
     # The entity or its alert rule may have changed under the cached reading.

@@ -12,7 +12,13 @@ export interface LocationSensorCategoryDefaults {
 
 export type LocationSensorDefaults = Record<LocationSensorCategory, LocationSensorCategoryDefaults>;
 
-const STORAGE_KEY = 'bambuddy-location-sensor-auto-add-defaults';
+// The alert fields (alertAbove/alertBelow/notifyOnAlert) live on the server in
+// the `location_sensor_alert_defaults` setting, not here: they seed the alert
+// rule written onto each sensor row, so two admins binding sensors from
+// different browsers must not seed different rules, and a backup has to carry
+// them. `showOnCard` stays per-browser — show_on_card is decided per sensor and
+// this is only the form's pre-selection, not a rule the installation runs on.
+const SHOW_ON_CARD_STORAGE_KEY = 'bambuddy-location-sensor-show-on-card-defaults';
 
 const EMPTY_CATEGORY_DEFAULTS: LocationSensorCategoryDefaults = {
   alertAbove: '',
@@ -29,26 +35,75 @@ export function defaultLocationSensorDefaults(): LocationSensorDefaults {
   };
 }
 
-export function loadLocationSensorDefaults(): LocationSensorDefaults {
+// Only the three alert fields are read off the server value; anything else in
+// the stored JSON is ignored so a hand-edited setting cannot inject keys.
+type StoredAlertDefaults = Partial<Record<LocationSensorCategory, Partial<LocationSensorCategoryDefaults>>>;
+
+function readShowOnCardDefaults(): Partial<Record<LocationSensorCategory, boolean>> {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Partial<LocationSensorDefaults>;
-      const defaults = defaultLocationSensorDefaults();
-      (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
-        if (parsed[category]) defaults[category] = { ...defaults[category], ...parsed[category] };
-      });
-      return defaults;
-    }
+    const stored = localStorage.getItem(SHOW_ON_CARD_STORAGE_KEY);
+    return stored ? (JSON.parse(stored) as Partial<Record<LocationSensorCategory, boolean>>) : {};
   } catch {
-    return defaultLocationSensorDefaults();
+    return {};
   }
-  return defaultLocationSensorDefaults();
 }
 
-export function saveLocationSensorDefaults(defaults: LocationSensorDefaults) {
+/**
+ * Merge built-in defaults, the server's alert defaults and the local
+ * show-on-card preference into one shape for the forms.
+ *
+ * Pass the `location_sensor_alert_defaults` string from the settings query.
+ * Omitting it (or passing an empty string) yields the built-in defaults, which
+ * is exactly what an installation that has never opened the options dialog
+ * gets — no migration needed.
+ */
+export function loadLocationSensorDefaults(alertDefaultsJson?: string | null): LocationSensorDefaults {
+  const defaults = defaultLocationSensorDefaults();
+
+  if (alertDefaultsJson) {
+    try {
+      const parsed = JSON.parse(alertDefaultsJson) as StoredAlertDefaults;
+      (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
+        const stored = parsed[category];
+        if (!stored) return;
+        if (typeof stored.alertAbove === 'string') defaults[category].alertAbove = stored.alertAbove;
+        if (typeof stored.alertBelow === 'string') defaults[category].alertBelow = stored.alertBelow;
+        if (typeof stored.notifyOnAlert === 'boolean') defaults[category].notifyOnAlert = stored.notifyOnAlert;
+      });
+    } catch {
+      // A corrupted setting falls back to the built-ins rather than blocking
+      // the dialog — same posture as the localStorage readers below.
+    }
+  }
+
+  const showOnCard = readShowOnCardDefaults();
+  (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
+    if (typeof showOnCard[category] === 'boolean') defaults[category].showOnCard = showOnCard[category];
+  });
+
+  return defaults;
+}
+
+/** The value to PATCH into `location_sensor_alert_defaults`. */
+export function serializeLocationSensorAlertDefaults(defaults: LocationSensorDefaults): string {
+  const out: StoredAlertDefaults = {};
+  (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
+    out[category] = {
+      alertAbove: defaults[category].alertAbove,
+      alertBelow: defaults[category].alertBelow,
+      notifyOnAlert: defaults[category].notifyOnAlert,
+    };
+  });
+  return JSON.stringify(out);
+}
+
+export function saveLocationSensorShowOnCardDefaults(defaults: LocationSensorDefaults) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+    const out: Partial<Record<LocationSensorCategory, boolean>> = {};
+    (Object.keys(defaults) as LocationSensorCategory[]).forEach((category) => {
+      out[category] = defaults[category].showOnCard;
+    });
+    localStorage.setItem(SHOW_ON_CARD_STORAGE_KEY, JSON.stringify(out));
   } catch {
     return;
   }

@@ -316,7 +316,7 @@ const columnCells: Record<string, (ctx: CellCtx) => ReactNode> = {
   },
   humidity: ({ spool, locationReadingsMap, t, colorizeLocationSensors, locationSensorAboveColor, locationSensorBelowColor, locationSensorOptimalColor }) => {
     const reading = spool.location_id
-      ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'humidity' || r.device_class === 'moisture')
+      ? locationReadingsMap[spool.location_id]?.find((r) => r.device_class === 'humidity')
       : undefined;
     if (!reading) return <span className="text-sm text-bambu-gray/50">-</span>;
     return (
@@ -528,7 +528,7 @@ const columnSortValues: Record<
   },
   humidity: (s, _am, lrm) => {
     const readings = s.location_id ? lrm[s.location_id] : undefined;
-    return readings?.find((r) => r.device_class === 'humidity' || r.device_class === 'moisture')?.value ?? -Infinity;
+    return readings?.find((r) => r.device_class === 'humidity')?.value ?? -Infinity;
   },
   battery: (s, _am, lrm) => {
     const readings = s.location_id ? lrm[s.location_id] : undefined;
@@ -2710,12 +2710,11 @@ function SpoolCard({
 const LOCATION_SENSOR_CATEGORY_ORDER: Record<string, number> = {
   temperature: 0,
   humidity: 1,
-  moisture: 1,
   battery: 2,
 };
 
 function locationSensorIconGapClass(deviceClass: string | null): string {
-  if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'mr-[2px]';
+  if (deviceClass === 'humidity') return 'mr-[2px]';
   if (deviceClass === 'battery') return 'mr-[3px]';
   return '';
 }

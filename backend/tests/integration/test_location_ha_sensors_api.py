@@ -258,23 +258,30 @@ class TestCascadeAndUniqueness:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_moisture_counts_as_humidity(self, async_client: AsyncClient, location_factory):
-        """Home Assistant reports some humidity sensors as device_class "moisture"."""
+    async def test_moisture_does_not_collide_with_humidity(self, async_client: AsyncClient, location_factory):
+        """ "moisture" is binary wet/dry, not a humidity percentage.
+
+        Treating it as the humidity category let a leak detector block the
+        hygrometer on the same location, put "wet" in a percent-formatted
+        column, and promised it thresholds the schema rejects for a binary
+        sensor. It has no category, so it does not take part in this rule.
+        """
         location = await location_factory()
         await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
 
         response = await async_client.post(
             "/api/v1/location-ha-sensors/",
             json={
-                **HUMIDITY,
                 "location_id": location.id,
-                "name": "Moisture",
-                "entity_id": "sensor.drybox_moisture",
+                "name": "Drybox Leak",
+                "entity_id": "binary_sensor.drybox_moisture",
+                "kind": "binary",
                 "device_class": "moisture",
+                "alert_state": "on",
             },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 200
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -362,6 +369,89 @@ class TestCascadeAndUniqueness:
         assert deleted.status_code == 200
         listed = await async_client.get("/api/v1/location-ha-sensors/")
         assert listed.json() == []
+
+
+class TestThresholdValidation:
+    """NaN/Infinity must not get into the alert thresholds.
+
+    Pydantic's lax mode coerces the strings "nan"/"inf" into real floats. A
+    NaN threshold satisfies "notify_on_alert requires an alert condition" yet
+    every comparison against it is False — a notification that can never fire
+    — and it slips past the below-vs-above ordering check the same way, while
+    responses serialize it as null so the UI shows an empty field.
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize("bad", ["nan", "inf", "-inf", "Infinity"])
+    async def test_create_rejects_non_finite_thresholds(self, async_client: AsyncClient, location_factory, bad):
+        location = await location_factory()
+
+        response = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={**HUMIDITY, "location_id": location.id, "alert_above": bad},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_patch_rejects_non_finite_thresholds(self, async_client: AsyncClient, location_factory):
+        location = await location_factory()
+        created = await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.patch(
+            f"/api/v1/location-ha-sensors/{created.json()['id']}",
+            json={"alert_below": "nan"},
+        )
+
+        assert response.status_code == 422
+
+
+class TestUniqueBindingBackstop:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_the_database_itself_rejects_a_duplicate_binding(
+        self, async_client: AsyncClient, location_factory, db_session
+    ):
+        """The route's duplicate check is read-then-insert; the unique index is
+        what stops the race where two concurrent creates both pass it."""
+        from sqlalchemy.exc import IntegrityError
+
+        from backend.app.models.location_ha_sensor import LocationHASensor
+
+        location = await location_factory()
+        db_session.add(LocationHASensor(location_id=location.id, name="First", entity_id="sensor.x", kind="numeric"))
+        await db_session.commit()
+
+        db_session.add(LocationHASensor(location_id=location.id, name="Second", entity_id="sensor.x", kind="numeric"))
+        with pytest.raises(IntegrityError):
+            await db_session.commit()
+        await db_session.rollback()
+
+
+class TestAlertDefaultsSetting:
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_accepts_a_real_defaults_map(self, async_client: AsyncClient):
+        value = '{"humidity": {"alertAbove": "60", "alertBelow": "", "notifyOnAlert": true}}'
+
+        response = await async_client.put("/api/v1/settings/", json={"location_sensor_alert_defaults": value})
+
+        assert response.status_code == 200
+        fetched = await async_client.get("/api/v1/settings/")
+        assert fetched.json()["location_sensor_alert_defaults"] == value
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_caps_the_stored_length(self, async_client: AsyncClient):
+        """The real payload is three categories × three short fields — well
+        under 300 characters. The cap only stops a stray client from parking
+        megabytes in the settings table; the frontend already treats anything
+        unparseable as "use the built-ins"."""
+        response = await async_client.put("/api/v1/settings/", json={"location_sensor_alert_defaults": "x" * 2001})
+
+        assert response.status_code == 422
 
 
 class TestPollInterval:

@@ -18,9 +18,19 @@ interface Props {
 }
 
 type SensorCategory = 'temperature' | 'humidity' | 'battery';
+// Doubles as the picker's filter (see `entities` below): an entity with no
+// category cannot be bound to a location at all.
+//
+// "moisture" is deliberately absent. It is Home Assistant's binary wet/dry
+// class, not a humidity percentage, and mapping it here made it a humidity
+// sensor everywhere downstream — it landed in the percent-formatted humidity
+// column rendering "wet", blocked a real humidity sensor on the same location
+// via the one-per-category rule, and could never take the seeded thresholds
+// because the schema rejects alert_above/alert_below for kind="binary".
+// A storage location wants a hygrometer, not a leak detector.
 function categoryFor(deviceClass: string | null): SensorCategory | null {
   if (deviceClass === 'temperature') return 'temperature';
-  if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'humidity';
+  if (deviceClass === 'humidity') return 'humidity';
   if (deviceClass === 'battery') return 'battery';
   return null;
 }
@@ -120,7 +130,10 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
   const selectEntity = (entity: HADisplayEntity) => {
     setEntityId(entity.entity_id);
     setDeviceClass(entity.device_class);
-    setUnit(entity.unit_of_measurement);
+    // Sliced like the name below: the unit is snapshotted from Home Assistant,
+    // not typed by the user, so an oversized one must not come back as a 422
+    // on a field the form never showed them. The column is String(16).
+    setUnit(entity.unit_of_measurement?.slice(0, 16) ?? null);
     const nextKind = entity.domain === 'binary_sensor' ? 'binary' : 'numeric';
     setKind(nextKind);
     if (nextKind === 'numeric') setAlertState('');
@@ -142,7 +155,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     if (!isEditing) {
       const category = categoryFor(entity.device_class);
       if (category) {
-        const defaults = loadLocationSensorDefaults()[category];
+        const defaults = loadLocationSensorDefaults(settings?.location_sensor_alert_defaults)[category];
         if (nextKind === 'numeric') {
           setAlertAbove(category === 'battery' ? '' : defaults.alertAbove);
           setAlertBelow(defaults.alertBelow);
@@ -191,7 +204,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
     mutationFn: async () => {
       const targetLocationId = Number(locationId);
       await api.createLocationHASensor({ ...buildPrimaryPayload(), location_id: targetLocationId });
-      const defaults = loadLocationSensorDefaults();
+      const defaults = loadLocationSensorDefaults(settings?.location_sensor_alert_defaults);
       const chosen = autoAddCandidates.filter((entity) => autoAddSelected[entity.entity_id]);
       for (const entity of chosen) {
         const categoryDefaults = categoryFor(entity.device_class);
@@ -201,7 +214,7 @@ export function LocationHASensorModal({ sensor, locations, onClose }: Props) {
           entity_id: entity.entity_id,
           kind: entity.domain === 'binary_sensor' ? 'binary' : 'numeric',
           device_class: entity.device_class,
-          unit: entity.unit_of_measurement,
+          unit: entity.unit_of_measurement?.slice(0, 16) ?? null,
           alert_state: null,
           alert_above: categoryDefaults !== 'battery' && d && d.alertAbove !== '' ? Number(d.alertAbove) : null,
           alert_below: d && d.alertBelow !== '' ? Number(d.alertBelow) : null,

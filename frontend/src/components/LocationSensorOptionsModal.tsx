@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Battery, Droplets, RotateCcw, Save, Settings2, Thermometer, X } from 'lucide-react';
 import { api } from '../api/client';
+import type { AppSettingsUpdate } from '../api/client';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { useToast } from '../contexts/ToastContext';
@@ -17,7 +18,8 @@ import {
   saveLocationSensorAlertBelowColor,
   saveLocationSensorAlertOptimalColor,
   saveLocationSensorColorizeValues,
-  saveLocationSensorDefaults,
+  saveLocationSensorShowOnCardDefaults,
+  serializeLocationSensorAlertDefaults,
   type LocationSensorAlertColor,
   type LocationSensorCategory,
   type LocationSensorCategoryDefaults,
@@ -43,9 +45,11 @@ const CATEGORY_UNITS: Record<LocationSensorCategory, string> = {
   battery: '%',
 };
 
+// Keep in step with categoryFor in LocationHASensorModal — "moisture" is
+// binary wet/dry, not a humidity percentage, and is not a location category.
 function categoryFor(deviceClass: string | null): LocationSensorCategory | null {
   if (deviceClass === 'temperature') return 'temperature';
-  if (deviceClass === 'humidity' || deviceClass === 'moisture') return 'humidity';
+  if (deviceClass === 'humidity') return 'humidity';
   if (deviceClass === 'battery') return 'battery';
   return null;
 }
@@ -143,6 +147,9 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  // Built-ins first, then seeded from the server once the settings query
+  // lands. The alert fields come from `location_sensor_alert_defaults`;
+  // show-on-card is still local.
   const [defaults, setDefaults] = useState<LocationSensorDefaults>(() => loadLocationSensorDefaults());
   const [colorizeValues, setColorizeValues] = useState(() => loadLocationSensorColorizeValues());
   const [aboveColor, setAboveColor] = useState<LocationSensorAlertColor>(() => loadLocationSensorAlertAboveColor());
@@ -152,27 +159,56 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
 
   const { data: appSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const [pollInterval, setPollInterval] = useState(DEFAULT_POLL_INTERVAL);
+
+  // Seed both server-backed fields once, and never over an edit in progress.
+  // The dialog renders immediately with placeholder values, so without the
+  // touched guard a settings response landing mid-keystroke silently puts the
+  // old value back in front of what was just typed (a field cleared and
+  // retyped came out as "3035"). In practice ['settings'] is warm —
+  // SettingsPage, which opens this dialog, already holds it — so this only
+  // covers the cold path and a background refetch.
+  const formTouched = useRef(false);
   useEffect(() => {
-    if (appSettings) setPollInterval(appSettings.location_sensor_poll_interval);
+    if (!appSettings || formTouched.current) return;
+    formTouched.current = true;
+    setPollInterval(appSettings.location_sensor_poll_interval);
+    setDefaults(loadLocationSensorDefaults(appSettings.location_sensor_alert_defaults));
   }, [appSettings]);
 
   const updateCategory = (category: LocationSensorCategory, patch: Partial<LocationSensorCategoryDefaults>) => {
+    formTouched.current = true;
     setDefaults((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
   };
 
+  const updatePollInterval = (value: number) => {
+    formTouched.current = true;
+    setPollInterval(value);
+  };
+
   const persistDefaults = async () => {
-    // Server call first: only touch the server when the interval actually
-    // changed (the one field here that needs SETTINGS_UPDATE/admin), and do
-    // it before writing anything to localStorage. A failed PATCH must leave
-    // the six local preferences below untouched, so the error toast that
-    // follows is true — nothing was saved, not "half of it was".
+    // Server call first, and only for fields that actually changed (these
+    // need SETTINGS_UPDATE/admin), before writing anything to localStorage.
+    // A failed PATCH must leave the local preferences below untouched, so the
+    // error toast that follows is true — nothing was saved, not "half of it
+    // was".
     const clampedInterval = Math.max(MIN_POLL_INTERVAL, pollInterval);
+    const alertDefaults = serializeLocationSensorAlertDefaults({
+      ...defaults,
+      battery: { ...defaults.battery, alertAbove: '' },
+    });
+    const patch: AppSettingsUpdate = {};
     if (appSettings && clampedInterval !== appSettings.location_sensor_poll_interval) {
-      await api.updateSettings({ location_sensor_poll_interval: clampedInterval });
+      patch.location_sensor_poll_interval = clampedInterval;
+    }
+    if (appSettings && alertDefaults !== appSettings.location_sensor_alert_defaults) {
+      patch.location_sensor_alert_defaults = alertDefaults;
+    }
+    if (Object.keys(patch).length > 0) {
+      await api.updateSettings(patch);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     }
 
-    saveLocationSensorDefaults({ ...defaults, battery: { ...defaults.battery, alertAbove: '' } });
+    saveLocationSensorShowOnCardDefaults(defaults);
     saveLocationSensorColorizeValues(colorizeValues);
     saveLocationSensorAlertAboveColor(aboveColor);
     saveLocationSensorAlertBelowColor(belowColor);
@@ -353,8 +389,8 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
               min={MIN_POLL_INTERVAL}
               step="1"
               value={pollInterval}
-              onChange={(e) => setPollInterval(Number(e.target.value))}
-              onBlur={() => setPollInterval((prev) => Math.max(MIN_POLL_INTERVAL, prev || DEFAULT_POLL_INTERVAL))}
+              onChange={(e) => updatePollInterval(Number(e.target.value))}
+              onBlur={() => updatePollInterval(Math.max(MIN_POLL_INTERVAL, pollInterval || DEFAULT_POLL_INTERVAL))}
               className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white"
             />
             <p className="text-xs text-bambu-gray">{t('locationHaSensors.options.pollIntervalHint')}</p>
