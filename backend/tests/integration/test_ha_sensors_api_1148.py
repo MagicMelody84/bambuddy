@@ -56,6 +56,20 @@ class TestCrud:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_rejects_an_entity_id_longer_than_the_column(self, async_client: AsyncClient, printer_factory):
+        """Same column-width bound as the location sibling: the pattern alone
+        is unbounded, and an oversized id would be a 500 on PostgreSQL."""
+        printer = await printer_factory()
+
+        response = await async_client.post(
+            "/api/v1/ha-sensors/",
+            json={**DOOR, "printer_id": printer.id, "entity_id": "binary_sensor." + "a" * 400},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_rejects_a_switch(self, async_client: AsyncClient, printer_factory):
         """Switches are smart plugs; this table is read-only sensors."""
         printer = await printer_factory()

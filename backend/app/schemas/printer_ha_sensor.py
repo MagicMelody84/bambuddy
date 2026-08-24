@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field, model_validator
 class PrinterHASensorBase(BaseModel):
     printer_id: int
     name: str = Field(..., min_length=1, max_length=100)
-    entity_id: str = Field(..., pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
+    # max_length matches the column (String(255)). The pattern's [a-z0-9_]+ is
+    # unbounded, so a direct API caller could send a longer id: SQLite stores
+    # it, PostgreSQL raises DataError, and it would surface as a 500 rather
+    # than a 422. Same bound as the location sibling.
+    entity_id: str = Field(..., max_length=255, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
     kind: Literal["binary", "numeric"] = "binary"
     device_class: str | None = Field(default=None, max_length=32)
     unit: str | None = Field(default=None, max_length=16)
@@ -59,7 +63,8 @@ class PrinterHASensorUpdate(BaseModel):
     the per-kind rules above need fields this payload may not carry."""
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    entity_id: str | None = Field(default=None, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
+    # Same column-width bound as the base schema; PATCH reaches the same row.
+    entity_id: str | None = Field(default=None, max_length=255, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
     kind: Literal["binary", "numeric"] | None = None
     device_class: str | None = Field(default=None, max_length=32)
     unit: str | None = Field(default=None, max_length=16)

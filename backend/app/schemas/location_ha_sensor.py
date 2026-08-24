@@ -11,7 +11,12 @@ from backend.app.schemas.printer_ha_sensor import HADisplayEntity  # noqa: F401
 class LocationHASensorBase(BaseModel):
     location_id: int
     name: str = Field(..., min_length=1, max_length=100)
-    entity_id: str = Field(..., pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
+    # max_length matches the column (String(255)). The pattern's [a-z0-9_]+ is
+    # unbounded, so a direct API caller — the picker only ever offers real
+    # Home Assistant ids — could send a longer one: SQLite stores it, but
+    # PostgreSQL raises DataError, and the create/update routes only map
+    # IntegrityError, so it would surface as a 500 instead of a 422.
+    entity_id: str = Field(..., max_length=255, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
     kind: Literal["binary", "numeric"] = "binary"
     device_class: str | None = Field(default=None, max_length=32)
     unit: str | None = Field(default=None, max_length=16)
@@ -66,7 +71,8 @@ class LocationHASensorUpdate(BaseModel):
     the per-kind rules above need fields this payload may not carry."""
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    entity_id: str | None = Field(default=None, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
+    # Same column-width bound as the base schema; PATCH reaches the same row.
+    entity_id: str | None = Field(default=None, max_length=255, pattern=r"^(binary_sensor|sensor)\.[a-z0-9_]+$")
     kind: Literal["binary", "numeric"] | None = None
     device_class: str | None = Field(default=None, max_length=32)
     unit: str | None = Field(default=None, max_length=16)

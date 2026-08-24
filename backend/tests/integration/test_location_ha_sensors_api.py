@@ -103,6 +103,38 @@ class TestCrud:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_rejects_an_entity_id_longer_than_the_column(self, async_client: AsyncClient, location_factory):
+        """entity_id is bounded by max_length, not just by its pattern.
+
+        The pattern's [a-z0-9_]+ is unbounded, so a direct API caller could
+        exceed the String(255) column. SQLite stores it regardless, but
+        PostgreSQL raises DataError, and the route only maps IntegrityError —
+        it would come back as a 500 instead of a 422.
+        """
+        location = await location_factory()
+
+        response = await async_client.post(
+            "/api/v1/location-ha-sensors/",
+            json={**HUMIDITY, "location_id": location.id, "entity_id": "sensor." + "a" * 400},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_patch_rejects_an_entity_id_longer_than_the_column(self, async_client: AsyncClient, location_factory):
+        location = await location_factory()
+        created = await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": location.id})
+
+        response = await async_client.patch(
+            f"/api/v1/location-ha-sensors/{created.json()['id']}",
+            json={"entity_id": "sensor." + "b" * 400},
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_rejects_an_unknown_location(self, async_client: AsyncClient):
         response = await async_client.post("/api/v1/location-ha-sensors/", json={**HUMIDITY, "location_id": 9999})
 
