@@ -4920,7 +4920,10 @@ export const api = {
   },
   rebuildSearchIndex: () => request<{ message: string }>('/archives/search/rebuild-index', { method: 'POST' }),
   getNo3MFWarning: () =>
-    request<{ has_fallback: boolean; reason: 'internal_storage' | 'no_external_storage' | null }>(
+    request<{
+      has_fallback: boolean;
+      reason: 'internal_storage' | 'no_external_storage' | 'internal_history' | null;
+    }>(
       '/archives/no-3mf-warning',
     ),
   updateArchive: (id: number, data: {
