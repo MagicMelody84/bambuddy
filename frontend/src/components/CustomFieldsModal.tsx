@@ -209,7 +209,7 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
         }}
       />
       <div
-        className="relative w-full max-w-3xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+        className="relative w-full max-w-4xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalTitleId}
@@ -247,27 +247,49 @@ export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
           ) : fields.length === 0 ? (
             <div className="py-16 text-center text-bambu-gray">{t('customFields.empty')}</div>
           ) : (
-            <table className="w-full text-sm table-fixed">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-bambu-dark-tertiary text-left text-bambu-gray">
-                  <th className="px-3 py-3 font-medium w-[18%]">{t('customFields.name')}</th>
-                  <th className="px-3 py-3 font-medium w-[20%]">{t('customFields.key')}</th>
-                  <th className="px-3 py-3 font-medium w-[16%]">{t('customFields.type')}</th>
-                  <th className="px-3 py-3 font-medium">{t('customFields.options')}</th>
-                  <th className="px-3 py-3 font-medium text-right w-20">{t('customFields.spools')}</th>
-                  <th className="px-3 py-3 font-medium text-right w-24">{t('common.actions')}</th>
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.name')}</th>
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.key')}</th>
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.type')}</th>
+                  {/* Auto layout rather than table-fixed: percentage columns
+                      cut "Kunde / Auftraggeber" down to "Kunde / Auftra…"
+                      while this column sat empty beside it. Name, key and type
+                      now take the width their content needs, and w-full +
+                      max-w-0 on the cells below makes Options the one that
+                      soaks up what is left and ellipsises. */}
+                  <th className="px-3 py-3 font-medium w-full">{t('customFields.options')}</th>
+                  <th className="px-3 py-3 font-medium text-right whitespace-nowrap">{t('customFields.spools')}</th>
+                  <th className="px-3 py-3 font-medium text-right whitespace-nowrap">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {fields.map((field) => (
                   <tr key={field.id} className="border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30">
-                    <td className="px-3 py-3 text-white font-medium truncate">{field.name}</td>
+                    {/* Capped so a 100-character name cannot push the table
+                        wider than the dialog; the title shows it in full. */}
+                    <td className="px-3 py-3 text-white font-medium max-w-[16rem] truncate" title={field.name}>
+                      {field.name}
+                    </td>
                     {/* Shown because this is what an API call addresses the
                         value by — the name is only a display label. */}
-                    <td className="px-3 py-3 text-bambu-gray font-mono text-xs truncate" title={field.key}>{field.key}</td>
-                    <td className="px-3 py-3 text-bambu-gray truncate">{t(`customFields.types.${field.field_type}`)}</td>
-                    <td className="px-3 py-3 text-bambu-gray truncate">{field.options.join(', ')}</td>
-                    <td className="px-3 py-3 text-right text-bambu-gray">{field.value_count}</td>
+                    <td
+                      className="px-3 py-3 text-bambu-gray font-mono text-xs max-w-[14rem] truncate"
+                      title={field.key}
+                    >
+                      {field.key}
+                    </td>
+                    <td className="px-3 py-3 text-bambu-gray whitespace-nowrap">
+                      {t(`customFields.types.${field.field_type}`)}
+                    </td>
+                    <td
+                      className="px-3 py-3 text-bambu-gray w-full max-w-0 truncate"
+                      title={field.options.join(', ')}
+                    >
+                      {field.options.join(', ')}
+                    </td>
+                    <td className="px-3 py-3 text-right text-bambu-gray whitespace-nowrap">{field.value_count}</td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
