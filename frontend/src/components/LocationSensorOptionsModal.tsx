@@ -160,28 +160,42 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
   const { data: appSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
   const [pollInterval, setPollInterval] = useState(DEFAULT_POLL_INTERVAL);
 
-  // Seed both server-backed fields once, and never over an edit in progress.
-  // The dialog renders immediately with placeholder values, so without the
-  // touched guard a settings response landing mid-keystroke silently puts the
-  // old value back in front of what was just typed (a field cleared and
-  // retyped came out as "3035"). In practice ['settings'] is warm —
-  // SettingsPage, which opens this dialog, already holds it — so this only
-  // covers the cold path and a background refetch.
-  const formTouched = useRef(false);
+  // Seed the server-backed fields once, and never over an edit in progress.
+  // The dialog renders immediately with placeholder values, so a settings
+  // response landing mid-keystroke would otherwise put the old value back in
+  // front of what was just typed (a field cleared and retyped came out as
+  // "3035"). In practice ['settings'] is warm — SettingsPage, which opens this
+  // dialog, already holds it — so this only covers the cold path and a
+  // background refetch.
+  //
+  // "Seeded" and "touched" are tracked apart on purpose. One flag for both
+  // means a keystroke that beats the response cancels the seed outright, and
+  // Save then writes built-in defaults over the server values for every field
+  // the user never saw. Seeding therefore always happens; it just skips the
+  // fields already edited, which are named here rather than counted.
+  const seeded = useRef(false);
+  const touched = useRef(new Set<LocationSensorCategory | 'pollInterval'>());
   useEffect(() => {
-    if (!appSettings || formTouched.current) return;
-    formTouched.current = true;
-    setPollInterval(appSettings.location_sensor_poll_interval);
-    setDefaults(loadLocationSensorDefaults(appSettings.location_sensor_alert_defaults));
+    if (!appSettings || seeded.current) return;
+    seeded.current = true;
+    if (!touched.current.has('pollInterval')) setPollInterval(appSettings.location_sensor_poll_interval);
+    const fromServer = loadLocationSensorDefaults(appSettings.location_sensor_alert_defaults);
+    setDefaults((prev) => {
+      const next = { ...fromServer };
+      (Object.keys(next) as LocationSensorCategory[]).forEach((category) => {
+        if (touched.current.has(category)) next[category] = prev[category];
+      });
+      return next;
+    });
   }, [appSettings]);
 
   const updateCategory = (category: LocationSensorCategory, patch: Partial<LocationSensorCategoryDefaults>) => {
-    formTouched.current = true;
+    touched.current.add(category);
     setDefaults((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
   };
 
   const updatePollInterval = (value: number) => {
-    formTouched.current = true;
+    touched.current.add('pollInterval');
     setPollInterval(value);
   };
 
@@ -233,7 +247,12 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
 
   const resetMutation = useMutation({
     mutationFn: async () => {
-      await persistDefaults();
+      // Sensors first, options after — the same write-order rule Save follows,
+      // one level up. Reset is the risky half: it rewrites every bound sensor,
+      // and if that fails the error toast has to mean "nothing was saved". The
+      // per-sensor PATCHes below stay individually non-atomic (there is no bulk
+      // route), so a failure part-way still leaves some rows reset — but it no
+      // longer also leaves the options saved against a reset that half ran.
       const [sensors, entities] = await Promise.all([api.getLocationHASensors(), api.getBindableLocationHAEntities()]);
       const friendlyNameByEntityId = new Map(entities.map((entity) => [entity.entity_id, entity.friendly_name]));
       const targets = sensors.filter((sensor) => categoryFor(sensor.device_class) !== null);
@@ -252,6 +271,7 @@ export function LocationSensorOptionsModal({ onClose }: Props) {
           });
         })
       );
+      await persistDefaults();
       return targets.length;
     },
     onSuccess: (count) => {

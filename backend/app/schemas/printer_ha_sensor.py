@@ -78,6 +78,14 @@ class PrinterHASensorUpdate(BaseModel):
 
 
 class PrinterHASensorResponse(PrinterHASensorBase):
+    # Reads stay tolerant of what writes now reject: this feature shipped
+    # before entity_id was bounded, and SQLite never enforced the column's 255,
+    # so a row longer than that can genuinely exist. Inheriting the bound would
+    # turn it into a 500 on the list route — the same failure the bound was
+    # added to prevent, moved from the write path to the read path. The pattern
+    # is dropped with it, for the same generation of rows. Writes are unchanged.
+    entity_id: str
+
     id: int
     last_state: str | None = None
     last_changed: datetime | None = None

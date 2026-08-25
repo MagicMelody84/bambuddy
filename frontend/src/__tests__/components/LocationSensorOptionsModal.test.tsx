@@ -205,6 +205,49 @@ describe('LocationSensorOptionsModal', () => {
     expect(screen.getAllByRole('spinbutton')[0]).toHaveValue(35);
   });
 
+  it('still seeds the fields the user did not touch when the settings response lands late', async () => {
+    // The other half of the guard above. Skipping the seed outright because a
+    // keystroke beat the response would leave every untouched field on the
+    // built-ins, and Save would then write those over the server's values for
+    // fields the user never saw. "Seeded" and "touched" are tracked apart so
+    // the seed still lands everywhere the user has not typed.
+    let resolveSettings: (value: unknown) => void = () => {};
+    getSettings.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSettings = resolve;
+      }) as never
+    );
+
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={() => {}} />);
+
+    const inputs = screen.getAllByRole('spinbutton');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '35');
+
+    await act(async () => {
+      resolveSettings({
+        location_sensor_poll_interval: 900,
+        location_sensor_alert_defaults: JSON.stringify({
+          humidity: { alertAbove: '55', alertBelow: '25', notifyOnAlert: true },
+        }),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(updateSettings).toHaveBeenCalled());
+    const patch = updateSettings.mock.calls[0][0] as Record<string, unknown>;
+    // Seeded, so it matches the server and is left out of the patch entirely.
+    // Unseeded it would still read 120 and be sent as a change nobody made.
+    expect(patch.location_sensor_poll_interval).toBeUndefined();
+    // The typed value survived...
+    expect(patch.location_sensor_alert_defaults).toContain('"alertAbove":"35"');
+    // ...and the category never touched kept the server's 55, not the built-in 30.
+    expect(patch.location_sensor_alert_defaults).toContain('"alertAbove":"55"');
+  });
+
   it('does not call updateSettings when nothing on the server side changed', async () => {
     // Both server-backed fields already match what the form would submit, so
     // an untouched Save must not issue a PATCH that needs admin rights.
@@ -314,6 +357,36 @@ describe('LocationSensorOptionsModal', () => {
         location_sensor_alert_defaults: expect.stringContaining('"alertAbove":"35"'),
       })
     );
+  });
+
+  it('saves nothing when the reset fails part-way', async () => {
+    // Reset used to save the options first and rewrite the sensors after, so a
+    // rejected sensor PATCH left the settings and the six local preferences
+    // saved behind an error toast that said nothing had been. Sensors first,
+    // options after: a failure now means the toast is true.
+    getLocationSensors.mockResolvedValue([{ id: 1, device_class: 'temperature' } as never]);
+    getEntities.mockResolvedValue([]);
+    updateSensor.mockRejectedValue(new Error('Forbidden'));
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<LocationSensorOptionsModal onClose={onClose} />);
+
+    await screen.findByText('Battery');
+    const inputs = screen.getAllByRole('spinbutton');
+    await user.clear(inputs[0]);
+    await user.type(inputs[0], '35');
+
+    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+    await screen.findByText(/cannot be undone/i);
+    await user.click(screen.getAllByRole('button', { name: /^reset$/i })[1]);
+
+    await waitFor(() => expect(updateSensor).toHaveBeenCalled());
+    expect(updateSettings).not.toHaveBeenCalled();
+    // The render itself writes unrelated keys (theme), so scope this to the
+    // preferences Save owns.
+    const written = vi.mocked(window.localStorage.setItem).mock.calls.map(([key]) => key);
+    expect(written.filter((key) => String(key).startsWith('bambuddy-location-sensor'))).toEqual([]);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('does not overwrite anything when the reset confirmation is cancelled', async () => {

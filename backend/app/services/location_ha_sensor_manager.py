@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.location import Location
 from backend.app.models.location_ha_sensor import LAST_STATE_MAX_LENGTH, LocationHASensor
 from backend.app.models.settings import Settings
-from backend.app.services.ha_sensor_manager import SensorReading, describe_state, evaluate
+from backend.app.services.ha_sensor_manager import SensorReading, describe_state, evaluate, persistable_state
 from backend.app.services.homeassistant import homeassistant_service
 from backend.app.utils.local_time import utcnow_naive
 
@@ -15,20 +15,6 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 120
 MIN_POLL_INTERVAL = 60
-
-
-def _persistable_state(state: str | None) -> str | None:
-    """Fit a raw HA state into the last_state column.
-
-    A numeric entity can start reporting free text (an enum, an error string)
-    longer than the column. PostgreSQL rejects the oversized row, and since
-    the poller commits its whole pass at once, one such sensor would sink
-    every sensor's update on every tick. The cached SensorReading keeps the
-    full state; only what is persisted is cut, and the comparison against the
-    stored value is done on the cut form so an unchanged-but-long state does
-    not read as a change on every poll.
-    """
-    return state[:LAST_STATE_MAX_LENGTH] if state else state
 
 
 class LocationHASensorManager:
@@ -159,7 +145,7 @@ class LocationHASensorManager:
             self._last_alerting[sensor.id] = reading.alerting
 
         sensor.last_checked = utcnow_naive()
-        persisted = _persistable_state(reading.state)
+        persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
         if reading.reachable and sensor.last_state != persisted:
             sensor.last_state = persisted
             sensor.last_changed = sensor.last_checked
@@ -194,7 +180,7 @@ class LocationHASensorManager:
 
             sensor.last_checked = now
             if reading.reachable:
-                persisted = _persistable_state(reading.state)
+                persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
                 if sensor.last_state != persisted:
                     sensor.last_state = persisted
                     sensor.last_changed = now

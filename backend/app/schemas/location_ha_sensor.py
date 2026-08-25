@@ -88,12 +88,21 @@ class LocationHASensorUpdate(BaseModel):
 
 
 class LocationHASensorResponse(LocationHASensorBase):
-    # Reads must tolerate what writes now reject: a row that got a NaN/inf
-    # threshold in before allow_inf_nan landed would otherwise fail response
-    # validation and 500 the whole list for one legacy row. Serialization
-    # turns them into null, which is also what the edit form should show.
+    # Reads must tolerate what writes now reject, or one legacy row 500s the
+    # whole list. Three constraints are relaxed here on purpose:
+    #
+    # * the NaN/inf thresholds a row could carry before allow_inf_nan landed —
+    #   serialization turns them into null, which is also what the edit form
+    #   should show;
+    # * the entity_id length bound, for a row created before max_length existed
+    #   (SQLite never enforced the column's 255, so those rows are real);
+    # * the entity_id pattern, which the same generation of rows predates.
+    #
+    # Every one of them is still rejected on the way in, so this widens what
+    # can be read back, never what can be stored.
     alert_above: float | None = None
     alert_below: float | None = None
+    entity_id: str
 
     id: int
     last_state: str | None = None

@@ -446,7 +446,7 @@ class TestNotificationsAPI:
         response = await async_client.get(f"/api/v1/notifications/{provider.id}")
         assert response.json()["on_billing_charge_failed"] is False
 
-    # Home Assistant sensor alert toggles (#1148, #2824).
+    # Per-event toggles that live only in these hand-maintained field maps.
     #
     # These have to be exercised through the route, not the ORM: both
     # directions of notifications.py are hand-maintained field-by-field maps,
@@ -456,10 +456,19 @@ class TestNotificationsAPI:
     # NotificationProviderBase, so FastAPI serialises the schema default
     # (False) instead of raising on the missing key, and the UI reads a
     # toggle that is on in the database as off.
+    #
+    # The Home Assistant pair (#1148, #2824) was the first to be caught this
+    # way. The stock pair was caught by the same reasoning: its columns, its
+    # templates, its sending code and its whole UI shipped, but the schema
+    # never carried the fields, so Pydantic dropped them from every payload and
+    # the toggles could not be turned on at all.
     @pytest.mark.asyncio
     @pytest.mark.integration
-    @pytest.mark.parametrize("field", ["on_ha_sensor_alert", "on_location_ha_sensor_alert"])
-    async def test_create_persists_and_returns_sensor_alert_toggle(self, async_client: AsyncClient, field: str):
+    @pytest.mark.parametrize(
+        "field",
+        ["on_ha_sensor_alert", "on_location_ha_sensor_alert", "on_stock_reorder_alert", "on_stock_break_alert"],
+    )
+    async def test_create_persists_and_returns_the_toggle(self, async_client: AsyncClient, field: str):
         response = await async_client.post(
             "/api/v1/notifications/",
             json={
@@ -481,7 +490,10 @@ class TestNotificationsAPI:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    @pytest.mark.parametrize("field", ["on_ha_sensor_alert", "on_location_ha_sensor_alert"])
+    @pytest.mark.parametrize(
+        "field",
+        ["on_ha_sensor_alert", "on_location_ha_sensor_alert", "on_stock_reorder_alert", "on_stock_break_alert"],
+    )
     async def test_patch_is_reflected_by_every_read_route(
         self, async_client: AsyncClient, notification_provider_factory, field: str
     ):

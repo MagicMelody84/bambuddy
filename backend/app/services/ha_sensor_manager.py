@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.printer import Printer
-from backend.app.models.printer_ha_sensor import PrinterHASensor
+from backend.app.models.printer_ha_sensor import LAST_STATE_MAX_LENGTH, PrinterHASensor
 from backend.app.services.homeassistant import as_float, homeassistant_service
 from backend.app.utils.local_time import utcnow_naive
 
@@ -43,6 +43,25 @@ class SensorReading:
     value: float | None  # parsed number for numeric sensors
     alerting: bool
     reachable: bool
+
+
+def persistable_state(state: str | None, max_length: int) -> str | None:
+    """Fit a raw HA state into a last_state column.
+
+    A numeric entity can start reporting free text (an enum, an error string)
+    longer than the column. PostgreSQL rejects the oversized row, and since a
+    poll pass commits every sensor at once, one such entity would sink every
+    other sensor's update on every tick -- and for printer sensors that also
+    freezes the print interlock's view of the world.
+
+    The cached SensorReading keeps the full state; only what is persisted is
+    cut, and the comparison against the stored value is done on the cut form so
+    an unchanged-but-long state does not read as a change on every poll.
+
+    Shared with the storage-location poller, which has the same column on its
+    own table -- each caller passes its own model's width.
+    """
+    return state[:max_length] if state else state
 
 
 class HASensorManager:
@@ -163,8 +182,9 @@ class HASensorManager:
             self._last_alerting[sensor.id] = reading.alerting
 
         sensor.last_checked = utcnow_naive()
-        if reading.reachable and sensor.last_state != reading.state:
-            sensor.last_state = reading.state
+        persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
+        if reading.reachable and sensor.last_state != persisted:
+            sensor.last_state = persisted
             sensor.last_changed = sensor.last_checked
         await db.commit()
         await db.refresh(sensor)
@@ -197,8 +217,9 @@ class HASensorManager:
 
             sensor.last_checked = now
             if reading.reachable:
-                if sensor.last_state != reading.state:
-                    sensor.last_state = reading.state
+                persisted = persistable_state(reading.state, LAST_STATE_MAX_LENGTH)
+                if sensor.last_state != persisted:
+                    sensor.last_state = persisted
                     sensor.last_changed = now
 
             # Notify on the edge into alerting only. `was_alerting is None` is

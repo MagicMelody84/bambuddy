@@ -70,6 +70,11 @@ def _provider_to_dict(provider: NotificationProvider) -> dict:
         "on_bed_cooled": provider.on_bed_cooled,
         # First layer complete
         "on_first_layer_complete": provider.on_first_layer_complete,
+        # Inventory stock alerts. Absent here, the toggles above always read
+        # back off no matter what the row holds — the same hand-maintained
+        # field map the Home Assistant comment warns about.
+        "on_stock_reorder_alert": provider.on_stock_reorder_alert,
+        "on_stock_break_alert": provider.on_stock_break_alert,
         # Print queue events
         "on_queue_job_added": provider.on_queue_job_added,
         "on_queue_job_assigned": provider.on_queue_job_assigned,
@@ -157,6 +162,9 @@ async def create_notification_provider(
         on_bed_cooled=provider_data.on_bed_cooled,
         # First layer complete
         on_first_layer_complete=provider_data.on_first_layer_complete,
+        # Inventory stock alerts
+        on_stock_reorder_alert=provider_data.on_stock_reorder_alert,
+        on_stock_break_alert=provider_data.on_stock_break_alert,
         # Print queue events
         on_queue_job_added=provider_data.on_queue_job_added,
         on_queue_job_assigned=provider_data.on_queue_job_assigned,

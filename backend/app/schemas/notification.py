@@ -88,6 +88,19 @@ class NotificationProviderBase(BaseModel):
     # Event triggers - First layer complete
     on_first_layer_complete: bool = Field(default=False, description="Notify when first layer completes")
 
+    # Event triggers - Inventory stock alerts
+    # Missing from this schema until now, so every payload naming them was
+    # dropped silently: the UI's toggles round-tripped as 200 OK and the row
+    # never changed, and _provider_to_dict never returned them either, so they
+    # always read back off. The columns and the sending code have existed since
+    # the inventory forecast landed.
+    on_stock_reorder_alert: bool = Field(
+        default=False, description="Notify when an inventory SKU hits its reorder point"
+    )
+    on_stock_break_alert: bool = Field(
+        default=False, description="Notify when stock will run out before replenishment arrives"
+    )
+
     # Event triggers - Print queue
     on_queue_job_added: bool = Field(default=False, description="Notify when job is added to queue")
     on_queue_job_assigned: bool = Field(default=False, description="Notify when model-based job is assigned to printer")
@@ -180,6 +193,10 @@ class NotificationProviderUpdate(BaseModel):
 
     # Event triggers - First layer complete
     on_first_layer_complete: bool | None = None
+
+    # Event triggers - Inventory stock alerts
+    on_stock_reorder_alert: bool | None = None
+    on_stock_break_alert: bool | None = None
 
     # Event triggers - Print queue
     on_queue_job_added: bool | None = None
