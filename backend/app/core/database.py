@@ -4187,7 +4187,7 @@ async def run_migrations(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name VARCHAR(255) NOT NULL UNIQUE,
             name_key VARCHAR(255),
-            identifier VARCHAR(100),
+            tag_uid VARCHAR(32),
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
@@ -4198,7 +4198,7 @@ async def run_migrations(conn):
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL UNIQUE,
             name_key VARCHAR(255),
-            identifier VARCHAR(100),
+            tag_uid VARCHAR(32),
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
@@ -4206,6 +4206,20 @@ async def run_migrations(conn):
     )
     await _safe_execute(conn, "ALTER TABLE locations ADD COLUMN name_key VARCHAR(255)")
     await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_locations_name_key ON locations (name_key)")
+    # Migration: rename the unused Phase-1 `identifier` reservation to
+    # `tag_uid`, matching Spool.tag_uid for NFC/RFID shelf tags.
+    await _safe_execute(conn, "ALTER TABLE locations RENAME COLUMN identifier TO tag_uid")
+    # RENAME COLUMN alone doesn't narrow the type — an upgraded Postgres
+    # install would keep the old `identifier VARCHAR(100)` width forever,
+    # diverging from the model's declared String(32) and from a fresh
+    # install's `tag_uid VARCHAR(32)`. SQLite ignores VARCHAR length, so
+    # this is a no-op there.
+    if not is_sqlite():
+        # USING LEFT(...) so a pre-existing value longer than 32 chars (the
+        # field was unused in Phase 1, so this is a defensive no-op in
+        # practice) gets truncated instead of failing the ALTER outright.
+        await _safe_execute(conn, "ALTER TABLE locations ALTER COLUMN tag_uid TYPE VARCHAR(32) USING LEFT(tag_uid, 32)")
+    await _migrate_location_tag_uid_unique(conn)
     await _safe_execute(conn, "ALTER TABLE spool ADD COLUMN location_id INTEGER REFERENCES locations(id)")
     await _safe_execute(conn, "CREATE INDEX IF NOT EXISTS ix_spool_location_id ON spool (location_id)")
 
@@ -4530,6 +4544,37 @@ async def run_migrations(conn):
     # Migration: drop the AMS slot markers an older Bambuddy wrote into
     # Spoolman and the location sync then imported as storage locations.
     await _migrate_drop_ams_slot_locations(conn)
+
+
+async def _migrate_location_tag_uid_unique(conn) -> None:
+    """Make ``locations.tag_uid`` unique, so one NFC tag maps to one shelf.
+
+    ``/locations/by-tag`` answers a scan with a single row, so two locations
+    sharing a UID make it silently resolve to whichever has the lower id — a
+    scan lands on the wrong shelf with nothing to indicate it. The API refuses
+    the second assignment now; this is the backstop for the window where it
+    did not, and for anything that writes the column directly.
+
+    An earlier build of this feature created the index as non-unique, so it is
+    dropped and recreated under the same name — the name the ORM model also
+    declares, so fresh installs (create_all) and upgrades agree. Duplicates
+    that got in before the rule existed are cleared to NULL on all but the
+    oldest row: CREATE UNIQUE INDEX refuses to build over them, and that
+    failure would abort startup. NULLs stay distinct in both SQLite and
+    PostgreSQL, so untagged locations are unaffected.
+    """
+    from sqlalchemy import text
+
+    async with conn.begin_nested():
+        await conn.execute(
+            text(
+                "UPDATE locations SET tag_uid = NULL "
+                "WHERE tag_uid IS NOT NULL AND id NOT IN ("
+                "SELECT MIN(id) FROM locations WHERE tag_uid IS NOT NULL GROUP BY tag_uid)"
+            )
+        )
+    await _safe_execute(conn, "DROP INDEX IF EXISTS ix_locations_tag_uid")
+    await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_locations_tag_uid ON locations (tag_uid)")
 
 
 async def _migrate_rename_ha_sensor_alert_template(conn) -> None:

@@ -49,6 +49,107 @@ async def test_locations_crud_and_spool_link(async_client: AsyncClient, db_sessi
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+async def test_get_location_by_tag(async_client: AsyncClient):
+    create_resp = await async_client.post(
+        "/api/v1/inventory/locations", json={"name": "Shelf C", "tag_uid": "04a1b2c3d4"}
+    )
+    assert create_resp.status_code == 201
+    loc = create_resp.json()
+
+    # Lookup normalizes to uppercase hex, so a differently-cased/spaced query
+    # still matches what was stored.
+    found_resp = await async_client.get("/api/v1/inventory/locations/by-tag", params={"tag_uid": "04:A1:B2:C3:D4"})
+    assert found_resp.status_code == 200
+    assert found_resp.json()["id"] == loc["id"]
+
+    missing_resp = await async_client.get("/api/v1/inventory/locations/by-tag", params={"tag_uid": "FFFFFFFFFF"})
+    assert missing_resp.status_code == 404
+
+    empty_resp = await async_client.get("/api/v1/inventory/locations/by-tag", params={"tag_uid": "xyz"})
+    assert empty_resp.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_a_tag_cannot_be_assigned_to_two_locations(async_client: AsyncClient):
+    """One physical tag, one shelf.
+
+    /locations/by-tag answers a scan with a single row, so a UID on two
+    locations makes it resolve to whichever has the lower id — the scan lands
+    on the wrong shelf with nothing to indicate it.
+    """
+    first = await async_client.post("/api/v1/inventory/locations", json={"name": "Shelf D", "tag_uid": "AABBCCDD"})
+    assert first.status_code == 201
+
+    # Same tag, differently formatted — normalization must not let it through.
+    clash = await async_client.post("/api/v1/inventory/locations", json={"name": "Shelf E", "tag_uid": "aa:bb:cc:dd"})
+    assert clash.status_code == 409
+    assert "NFC tag" in clash.json()["detail"]
+
+    # The scan still resolves to the one location that owns the tag.
+    resolved = await async_client.get("/api/v1/inventory/locations/by-tag", params={"tag_uid": "AABBCCDD"})
+    assert resolved.status_code == 200
+    assert resolved.json()["id"] == first.json()["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_patch_cannot_steal_another_locations_tag(async_client: AsyncClient):
+    owner = await async_client.post("/api/v1/inventory/locations", json={"name": "Shelf F", "tag_uid": "11223344"})
+    assert owner.status_code == 201
+    other = await async_client.post("/api/v1/inventory/locations", json={"name": "Shelf G"})
+    other_id = other.json()["id"]
+
+    clash = await async_client.patch(f"/api/v1/inventory/locations/{other_id}", json={"tag_uid": "11223344"})
+    assert clash.status_code == 409
+
+    # Re-writing a location's own tag stays allowed — that is the ordinary
+    # scan-and-save flow, not a conflict.
+    same = await async_client.patch(
+        f"/api/v1/inventory/locations/{owner.json()['id']}", json={"tag_uid": "11:22:33:44"}
+    )
+    assert same.status_code == 200
+    assert same.json()["tag_uid"] == "11223344"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_untagged_locations_do_not_collide(async_client: AsyncClient):
+    """NULL tag_uid must stay distinct — otherwise the unique index would let
+    exactly one location exist without a tag."""
+    for name in ("Untagged 1", "Untagged 2", "Untagged 3"):
+        resp = await async_client.post("/api/v1/inventory/locations", json={"name": name})
+        assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_update_location_can_clear_tag_uid(async_client: AsyncClient):
+    # Regression: PATCH with tag_uid=null must clear the field. An earlier
+    # `if data.tag_uid is not None` guard couldn't distinguish "omitted" from
+    # "explicitly cleared" — both parse to None — so a clear request silently
+    # left the old tag_uid in place.
+    create_resp = await async_client.post("/api/v1/inventory/locations", json={"name": "Shelf B"})
+    assert create_resp.status_code == 201
+    loc_id = create_resp.json()["id"]
+
+    set_resp = await async_client.patch(f"/api/v1/inventory/locations/{loc_id}", json={"tag_uid": "04A1B2C3D4"})
+    assert set_resp.status_code == 200
+    assert set_resp.json()["tag_uid"] == "04A1B2C3D4"
+
+    clear_resp = await async_client.patch(f"/api/v1/inventory/locations/{loc_id}", json={"tag_uid": None})
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["tag_uid"] is None
+
+    # Omitting tag_uid entirely must leave a previously-set value untouched.
+    await async_client.patch(f"/api/v1/inventory/locations/{loc_id}", json={"tag_uid": "04A1B2C3D4"})
+    untouched_resp = await async_client.patch(f"/api/v1/inventory/locations/{loc_id}", json={"name": "Shelf B Renamed"})
+    assert untouched_resp.status_code == 200
+    assert untouched_resp.json()["tag_uid"] == "04A1B2C3D4"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
 async def test_list_locations_sorts_naturally_not_lexicographically(async_client: AsyncClient):
     # Created out of order and with a name-shape ("Drybox N") that a plain
     # ORDER BY name would sort as "Drybox 1", "Drybox 10", "Drybox 2".

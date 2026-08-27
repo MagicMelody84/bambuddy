@@ -20,8 +20,13 @@ class Location(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     # Case-insensitive uniqueness — LOWER(TRIM(name)); enforced via migration index.
     name_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
-    # Reserved for Phase 3 RFID shelf tags — unused in Phase 1.
-    identifier: Mapped[str | None] = mapped_column(String(100))
+    # RFID/NFC tag UID for the physical shelf/drawer, mirrors Spool.tag_uid.
+    # Unique: a scan resolves through /locations/by-tag, which answers with one
+    # row, so a UID on two shelves would make that pick silently. NULLs stay
+    # distinct in both SQLite and PostgreSQL, so untagged locations are fine.
+    # Upgraded databases get the same index from
+    # _migrate_location_tag_uid_unique, under this same (default) name.
+    tag_uid: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

@@ -31,8 +31,8 @@ vi.mock('../../contexts/ToastContext', () => ({
 }));
 
 const locations = [
-  { id: 1, name: 'Shelf A', identifier: null, spool_count: 2, created_at: '2026-01-01', updated_at: '2026-01-01' },
-  { id: 2, name: 'Drawer 1', identifier: null, spool_count: 0, created_at: '2026-01-01', updated_at: '2026-01-01' },
+  { id: 1, name: 'Shelf A', tag_uid: null, spool_count: 2, created_at: '2026-01-01', updated_at: '2026-01-01' },
+  { id: 2, name: 'Drawer 1', tag_uid: null, spool_count: 0, created_at: '2026-01-01', updated_at: '2026-01-01' },
 ];
 
 function renderModal(open = true) {
@@ -75,7 +75,7 @@ describe('LocationsModal', () => {
     vi.mocked(api.createLocation).mockResolvedValue({
       id: 3,
       name: 'Garage',
-      identifier: null,
+      tag_uid: null,
       spool_count: 0,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
@@ -97,7 +97,7 @@ describe('LocationsModal', () => {
     vi.mocked(api.createLocation).mockResolvedValue({
       id: 3,
       name: 'Garage',
-      identifier: null,
+      tag_uid: null,
       spool_count: 0,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
@@ -137,7 +137,7 @@ describe('LocationsModal', () => {
     vi.mocked(api.updateLocation).mockResolvedValue({
       id: 2,
       name: 'Drawer 2',
-      identifier: null,
+      tag_uid: null,
       spool_count: 0,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
@@ -249,7 +249,7 @@ describe('LocationsModal — startCreating', () => {
     vi.mocked(api.createLocation).mockResolvedValue({
       id: 3,
       name: 'Garage',
-      identifier: null,
+      tag_uid: null,
       spool_count: 0,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
