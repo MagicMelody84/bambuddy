@@ -8,7 +8,7 @@ import { SpoolBuddyStatusBar } from './SpoolBuddyStatusBar';
 import { SpoolBuddyQuickMenu } from './SpoolBuddyQuickMenu';
 import { useSpoolBuddyState } from '../../hooks/useSpoolBuddyState';
 import { useColorCatalogVersion } from '../../hooks/useColorCatalogVersion';
-import { api, spoolbuddyApi, type Printer, type PrinterStatus } from '../../api/client';
+import { api, spoolbuddyApi, type Printer, type PrinterStatus, type SpoolBuddyDevice } from '../../api/client';
 import { VirtualKeyboard } from '../VirtualKeyboard';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -45,7 +45,7 @@ export function SpoolBuddyLayout() {
   }, [appSettings?.language, i18n]);
 
   // Query device data to initialize display settings on any page
-  const { data: devices = [] } = useQuery({
+  const { data: devices = [], isLoading: devicesLoading } = useQuery({
     queryKey: ['spoolbuddy-devices'],
     queryFn: () => spoolbuddyApi.getDevices(),
     refetchInterval: 30000,
@@ -225,7 +225,7 @@ export function SpoolBuddyLayout() {
         <main className="flex-1 overflow-y-auto">
           <Outlet context={{
             selectedPrinterId, setSelectedPrinterId, sbState: sbStateForUi, setAlert,
-            displayBrightness, setDisplayBrightness,
+            displayBrightness, setDisplayBrightness, device, deviceLoading: devicesLoading,
           }} />
         </main>
 
@@ -253,4 +253,6 @@ export interface SpoolBuddyOutletContext {
   setAlert: (alert: { type: 'warning' | 'error' | 'info'; message: string } | null) => void;
   displayBrightness: number;
   setDisplayBrightness: (brightness: number) => void;
+  device: SpoolBuddyDevice | undefined;
+  deviceLoading: boolean;
 }

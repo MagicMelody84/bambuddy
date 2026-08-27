@@ -35,7 +35,7 @@ import { SliceJobTrackerProvider } from './contexts/SliceJobTrackerContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ColorCatalogProvider } from './contexts/ColorCatalogContext';
 import { SpoolBuddyLayout } from './components/spoolbuddy/SpoolBuddyLayout';
-import { SpoolBuddyDashboard } from './pages/spoolbuddy/SpoolBuddyDashboard';
+import { SpoolBuddyOverview } from './pages/spoolbuddy/SpoolBuddyOverview';
 import { SpoolBuddyAmsPage } from './pages/spoolbuddy/SpoolBuddyAmsPage';
 import { SpoolBuddySettingsPage } from './pages/spoolbuddy/SpoolBuddySettingsPage';
 import { SpoolBuddyCalibrationPage } from './pages/spoolbuddy/SpoolBuddyCalibrationPage';
@@ -193,7 +193,7 @@ function App() {
 
                 {/* SpoolBuddy kiosk UI */}
                 <Route element={<ProtectedRoute><WebSocketProvider><SpoolBuddyLayout /></WebSocketProvider></ProtectedRoute>}>
-                  <Route path="spoolbuddy" element={<SpoolBuddyDashboard />} />
+                  <Route path="spoolbuddy" element={<SpoolBuddyOverview />} />
                   <Route path="spoolbuddy/ams" element={<SpoolBuddyAmsPage />} />
                   <Route path="spoolbuddy/write-tag" element={<SpoolBuddyWriteTagPage />} />
                   <Route path="spoolbuddy/inventory" element={<SpoolBuddyInventoryPage />} />

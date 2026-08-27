@@ -26,6 +26,9 @@ class SpoolBuddyDevice(Base):
     display_brightness: Mapped[int] = mapped_column(Integer, default=100)
     display_blank_timeout: Mapped[int] = mapped_column(Integer, default=0)
     has_backlight: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "standard" (RPi kiosk with printer/AMS integration) or "lite" (scale+NFC
+    # only, no printer/AMS features — shows a reduced dashboard).
+    hardware_variant: Mapped[str] = mapped_column(String(20), default="standard")
     last_calibrated_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime)
     pending_command: Mapped[str | None] = mapped_column(String(50))

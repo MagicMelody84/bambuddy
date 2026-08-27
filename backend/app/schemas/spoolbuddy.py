@@ -1,3 +1,4 @@
+import ipaddress
 import json
 from datetime import datetime
 from typing import Literal
@@ -5,6 +6,32 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 # --- Device schemas ---
+
+
+def validate_device_ip(value: str | None) -> str | None:
+    """Accept only a literal IP address for a device's ``ip_address``.
+
+    The value is not just displayed: the Settings page builds
+    ``http://<ip_address>`` and embeds it in an iframe, and the SSH updater
+    connects to it. A hostname or URL fragment here would let a registered
+    device point that frame at an arbitrary origin, so the field is held to
+    what its name promises. ``ipaddress`` also rejects the numeric-encoded
+    forms (``2130706433``, ``0x7f000001``) that browsers still resolve — see
+    the same reasoning in ``_url_safety.py``.
+
+    Devices legitimately live on the LAN, so private and loopback addresses
+    are fine; only the "this is not an IP at all" case is refused.
+    """
+    if value is None:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    try:
+        ipaddress.ip_address(candidate)
+    except ValueError:
+        raise ValueError("ip_address must be an IPv4 or IPv6 address") from None
+    return candidate
 
 
 class DeviceRegisterRequest(BaseModel):
@@ -20,6 +47,15 @@ class DeviceRegisterRequest(BaseModel):
     nfc_connection: str | None = Field(None, max_length=20)
     backend_url: str | None = Field(None, max_length=255)
     has_backlight: bool = False
+    hardware_variant: Literal["standard", "lite"] = "standard"
+
+    @field_validator("ip_address")
+    @classmethod
+    def _validate_ip_address(cls, v: str) -> str:
+        validated = validate_device_ip(v)
+        if validated is None:
+            raise ValueError("ip_address must be an IPv4 or IPv6 address")
+        return validated
 
 
 class DeviceResponse(BaseModel):
@@ -38,6 +74,7 @@ class DeviceResponse(BaseModel):
     display_brightness: int = 100
     display_blank_timeout: int = 0
     has_backlight: bool = False
+    hardware_variant: Literal["standard", "lite"] = "standard"
     last_calibrated_at: datetime | None = None
     last_seen: datetime | None = None
     pending_command: str | None = None
@@ -66,6 +103,13 @@ class HeartbeatRequest(BaseModel):
     nfc_connection: str | None = Field(None, max_length=20)
     backend_url: str | None = Field(None, max_length=255)
     system_stats: dict | None = None
+
+    @field_validator("ip_address")
+    @classmethod
+    def _validate_ip_address(cls, v: str | None) -> str | None:
+        # Same rule as registration: the heartbeat can move a device's address,
+        # so it is the second way an unvalidated value reaches the iframe.
+        return validate_device_ip(v)
 
     @field_validator("system_stats")
     @classmethod

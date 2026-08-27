@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,11 +20,13 @@ import {
   RefreshCw,
   RotateCw,
   Power,
+  ExternalLink,
 } from 'lucide-react';
 import { spoolbuddyApi, type SpoolBuddyDevice } from '../api/client';
 import { Card, CardContent, CardHeader } from './Card';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
+import { SpoolBuddyWebInterfaceModal } from './SpoolBuddyWebInterfaceModal';
 import { useToast } from '../contexts/ToastContext';
 import { formatRelativeTime } from '../utils/date';
 
@@ -63,6 +65,7 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
   const online = device.online;
   const [pendingAction, setPendingAction] = useState<ActionKey | null>(null);
   const [busyAction, setBusyAction] = useState<ActionKey | null>(null);
+  const [showWebInterface, setShowWebInterface] = useState(false);
 
   const runAction = async (action: ActionKey) => {
     setBusyAction(action);
@@ -82,13 +85,17 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
     }
   };
 
-  const actions: { key: ActionKey; label: string; icon: typeof Download; variant?: 'danger' }[] = [
+  // Lite hardware (scale+NFC only, no printer/AMS) has no daemon-managed
+  // browser/update pipeline to restart — only Reboot applies, matching the
+  // kiosk's own reduced SpoolBuddyLiteDashboard button set.
+  const allActions: { key: ActionKey; label: string; icon: typeof Download; variant?: 'danger' }[] = [
     { key: 'update', label: t('settings.spoolbuddy.update'), icon: Download },
     { key: 'restart_browser', label: t('settings.spoolbuddy.restartBrowser'), icon: Monitor },
     { key: 'restart_daemon', label: t('settings.spoolbuddy.restartDaemon'), icon: RefreshCw },
     { key: 'reboot', label: t('settings.spoolbuddy.reboot'), icon: RotateCw },
     { key: 'shutdown', label: t('settings.spoolbuddy.shutdown'), icon: Power, variant: 'danger' },
   ];
+  const actions = device.hardware_variant === 'lite' ? allActions.filter((a) => a.key === 'reboot') : allActions;
 
   const confirmTitles: Record<ActionKey, string> = {
     update: t('settings.spoolbuddy.updateConfirmTitle'),
@@ -165,23 +172,35 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {actions.map(({ key, label, icon: Icon, variant }) => (
-            <Button
-              key={key}
-              variant={variant ?? 'secondary'}
-              size="sm"
-              onClick={() => setPendingAction(key)}
-              disabled={!online || busyAction !== null}
-              aria-label={label}
-            >
-              {busyAction === key ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Icon className="w-3.5 h-3.5" />
+            <Fragment key={key}>
+              <Button
+                variant={variant ?? 'secondary'}
+                size="sm"
+                onClick={() => setPendingAction(key)}
+                disabled={!online || busyAction !== null}
+                aria-label={label}
+              >
+                {busyAction === key ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Icon className="w-3.5 h-3.5" />
+                )}
+                <span>{label}</span>
+              </Button>
+              {key === 'reboot' && (
+                <button
+                  type="button"
+                  onClick={() => setShowWebInterface(true)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-bambu-dark hover:bg-bambu-dark-tertiary text-bambu-gray hover:text-white text-xs rounded-full transition-colors"
+                  title={t('settings.spoolbuddy.openWebInterface')}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {t('settings.spoolbuddy.webInterface')}
+                </button>
               )}
-              <span>{label}</span>
-            </Button>
+            </Fragment>
           ))}
         </div>
 
@@ -284,6 +303,13 @@ function DeviceCard({ device, onUnregister, isDeleting }: DeviceCardProps) {
           isLoading={busyAction !== null}
           onConfirm={() => runAction(pendingAction)}
           onCancel={() => setPendingAction(null)}
+        />
+      )}
+      {showWebInterface && (
+        <SpoolBuddyWebInterfaceModal
+          hostname={device.hostname}
+          ipAddress={device.ip_address}
+          onClose={() => setShowWebInterface(false)}
         />
       )}
     </Card>
