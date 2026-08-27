@@ -104,6 +104,55 @@ class TestDeviceEndpoints:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "bad_ip",
+        [
+            "evil.example.com",  # hostname — the iframe would frame a foreign origin
+            "http://evil.example.com",
+            "2130706433",  # decimal-encoded 127.0.0.1, which browsers still resolve
+            "0x7f000001",
+            "192.168.1.1 evil.example.com",
+        ],
+    )
+    async def test_register_rejects_a_non_ip_address(self, async_client: AsyncClient, bad_ip):
+        """ip_address is not only displayed: the Settings page builds
+        http://<ip_address> and frames it, and the SSH updater connects to it."""
+        resp = await async_client.post(
+            f"{API}/devices/register",
+            json={"device_id": "sb-bad-ip", "hostname": "spoolbuddy-bad", "ip_address": bad_ip},
+        )
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_register_accepts_ipv6(self, async_client: AsyncClient):
+        with patch("backend.app.api.routes.spoolbuddy.ws_manager") as mock_ws:
+            mock_ws.broadcast = AsyncMock()
+            resp = await async_client.post(
+                f"{API}/devices/register",
+                json={"device_id": "sb-v6", "hostname": "spoolbuddy-v6", "ip_address": "fd00::1"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["ip_address"] == "fd00::1"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_heartbeat_rejects_a_non_ip_address(self, async_client: AsyncClient, device_factory):
+        """The heartbeat can move a device's address, so it is the second way
+        an unvalidated value would reach the iframe."""
+        device = await device_factory(device_id="sb-hb-ip")
+
+        resp = await async_client.post(
+            f"{API}/devices/{device.device_id}/heartbeat",
+            json={"nfc_ok": True, "scale_ok": True, "ip_address": "evil.example.com"},
+        )
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_re_register_existing_device(self, async_client: AsyncClient, device_factory):
         device = await device_factory(
             device_id="sb-exist",

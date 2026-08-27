@@ -1108,6 +1108,36 @@ async def search_colors(
     return list(result.scalars().all())
 
 
+@router.get("/colors/materials", response_model=list[str])
+async def list_color_materials(
+    manufacturer: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
+):
+    """List the distinct materials the colour catalog has entries for.
+
+    ``/colors/search`` was the only way to answer "which materials does this
+    manufacturer offer", by fetching colour rows and collecting their
+    ``material`` values. That endpoint caps at 100 rows, and for a broad
+    catalog those rows do not cover every material: Bambu Lab's first 100
+    entries (ordered by colour name) carry only 18 distinct materials, so a
+    client building a material picker from them silently misses the rest.
+
+    Selecting the distinct values directly needs no cap -- the answer is a
+    short list of strings rather than the hundreds of catalog rows it would
+    otherwise be derived from.
+    """
+    query = select(ColorCatalogEntry.material).where(ColorCatalogEntry.material.isnot(None))
+    if manufacturer:
+        # Same matching as /colors/search, so a client can pass the value it
+        # got from /colors (contains, case-insensitive) and get a consistent
+        # answer from both.
+        query = query.where(func.lower(ColorCatalogEntry.manufacturer).contains(manufacturer.lower()))
+    query = query.distinct().order_by(ColorCatalogEntry.material)
+    result = await db.execute(query)
+    return [m for m in result.scalars().all() if m and m.strip()]
+
+
 @router.post("/colors/sync")
 async def sync_from_filamentcolors(
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_UPDATE),

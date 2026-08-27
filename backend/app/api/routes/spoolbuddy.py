@@ -143,6 +143,7 @@ def _device_to_response(device: SpoolBuddyDevice) -> DeviceResponse:
         display_brightness=device.display_brightness,
         display_blank_timeout=device.display_blank_timeout,
         has_backlight=device.has_backlight,
+        hardware_variant=device.hardware_variant,
         last_calibrated_at=device.last_calibrated_at,
         last_seen=device.last_seen,
         pending_command=device.pending_command,
@@ -196,6 +197,12 @@ async def register_device(
         if req.backend_url:
             device.backend_url = req.backend_url
         device.has_backlight = req.has_backlight
+        # Only overwrite if the client actually sent it — the field defaults
+        # to "standard", so an older daemon build (or any caller omitting it)
+        # would otherwise silently revert an already-registered "lite"
+        # device back to "standard" on every re-registration/heartbeat.
+        if "hardware_variant" in req.model_fields_set:
+            device.hardware_variant = req.hardware_variant
         device.last_seen = now
         # Clear stale update status on re-registration (daemon restarted after update)
         if device.update_status in ("pending", "updating", "complete", "error"):
@@ -215,6 +222,7 @@ async def register_device(
             nfc_reader_type=req.nfc_reader_type,
             nfc_connection=req.nfc_connection,
             has_backlight=req.has_backlight,
+            hardware_variant=req.hardware_variant,
             backend_url=req.backend_url,
             last_seen=now,
         )

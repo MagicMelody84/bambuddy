@@ -8632,6 +8632,7 @@ export interface SpoolBuddyDevice {
   display_brightness: number;
   display_blank_timeout: number;
   has_backlight: boolean;
+  hardware_variant: 'standard' | 'lite';
   last_calibrated_at: string | null;
   last_seen: string | null;
   pending_command: string | null;

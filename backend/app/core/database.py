@@ -2742,6 +2742,13 @@ async def run_migrations(conn):
     if not is_sqlite():
         await _safe_execute(conn, "ALTER TABLE spoolbuddy_devices ALTER COLUMN ssh_host_key TYPE TEXT")
 
+    # Migration: Add hardware_variant column to spoolbuddy_devices — distinguishes
+    # "lite" (scale+NFC only) devices from "standard" so the kiosk can show a
+    # reduced-button dashboard.
+    await _safe_execute(
+        conn, "ALTER TABLE spoolbuddy_devices ADD COLUMN hardware_variant VARCHAR(20) DEFAULT 'standard'"
+    )
+
     # Migration: Convert ams_labels table from (printer_id, ams_id) key to ams_serial_number key
     # Labels are now keyed by AMS serial number so they persist when the AMS is moved to another printer.
     # PostgreSQL gets the correct schema from create_all(), so skip this
