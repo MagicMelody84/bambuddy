@@ -129,7 +129,10 @@ class SpoolBase(BaseModel):
 
 
 class SpoolCreate(SpoolBase):
-    pass
+    # User-defined custom fields, keyed by CustomField.key. Kept off SpoolBase
+    # so `Spool(**model_dump())` in the create routes still maps 1:1 onto ORM
+    # columns — the routes pop this key and hand it to custom_field_service.
+    custom_fields: dict[str, str | None] = Field(default_factory=dict)
 
 
 class SpoolBulkCreate(BaseModel):
@@ -176,6 +179,9 @@ class SpoolUpdate(BaseModel):
     low_stock_threshold_pct: int | None = Field(default=None, ge=1, le=99)
     storage_location: str | None = Field(default=None, max_length=255)
     location_id: int | None = Field(default=None, gt=0)
+    # Only the keys present are touched; a key mapped to null/"" clears that
+    # field on the spool. Omitting the whole dict leaves all values alone.
+    custom_fields: dict[str, str | None] | None = None
 
 
 class SpoolKProfileBase(BaseModel):
@@ -241,6 +247,9 @@ class SpoolResponse(SpoolBase):
     created_at: datetime
     updated_at: datetime
     k_profiles: list[SpoolKProfileResponse] = []
+    # Flattened from Spool.custom_values by the model's `custom_fields`
+    # property, so every `return spool` path carries them without change.
+    custom_fields: dict[str, str | None] = {}
 
     class Config:
         from_attributes = True

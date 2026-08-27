@@ -3,6 +3,9 @@ import type { QueryClient } from '@tanstack/react-query';
 /** React Query key for GET /inventory/locations (catalog + spool counts). */
 export const inventoryLocationsQueryKey = ['inventory-locations'] as const;
 
+/** React Query key for GET /inventory/custom-fields (field definitions). */
+export const inventoryCustomFieldsQueryKey = ['inventory-custom-fields'] as const;
+
 export function invalidateInventoryLocations(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: inventoryLocationsQueryKey });
 }

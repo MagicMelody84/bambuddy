@@ -1631,6 +1631,19 @@ export interface StorageLocation {
   updated_at: string;
 }
 
+export interface CustomFieldDef {
+  id: number;
+  // Stable slug the values are keyed by — never changes when the field is renamed.
+  key: string;
+  name: string;
+  field_type: string;
+  options: string[];
+  sort_order: number;
+  value_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ColorCatalogEntry {
   id: number;
   manufacturer: string;
@@ -3553,6 +3566,8 @@ export interface InventorySpool {
   k_profiles?: SpoolKProfile[];
   storage_location?: string | null;
   location_id?: number | null;
+  /** User-defined custom fields, keyed by CustomFieldDef.key. */
+  custom_fields?: Record<string, string | null>;
 }
 
 export interface SpoolmanBulkCreateResult {
@@ -6515,6 +6530,14 @@ export const api = {
     request<StorageLocation>(`/inventory/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLocation: (id: number) =>
     request<{ status: string }>(`/inventory/locations/${id}`, { method: 'DELETE' }),
+  getCustomFields: () =>
+    request<CustomFieldDef[]>('/inventory/custom-fields'),
+  createCustomField: (data: { name: string; key?: string; field_type?: string; options?: string[]; sort_order?: number }) =>
+    request<CustomFieldDef>('/inventory/custom-fields', { method: 'POST', body: JSON.stringify(data) }),
+  updateCustomField: (id: number, data: { name?: string; field_type?: string; options?: string[]; sort_order?: number }) =>
+    request<CustomFieldDef>(`/inventory/custom-fields/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCustomField: (id: number) =>
+    request<{ status: string; values_removed: number }>(`/inventory/custom-fields/${id}`, { method: 'DELETE' }),
   getColorCatalog: () =>
     request<ColorCatalogEntry[]>('/inventory/colors'),
   /** Flat hex→name map, plus the names collapsing it loses. ``by_material`` is

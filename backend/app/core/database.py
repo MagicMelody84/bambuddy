@@ -4303,6 +4303,78 @@ async def run_migrations(conn):
             orphan_count,
         )
 
+    # Migration: user-defined custom fields for spools. Definition table plus a
+    # value row per (spool, field) — the FK lives on the value side because a
+    # spool carries many fields, mirroring spool_k_profile. No backfill: the
+    # feature starts empty.
+    await _safe_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS custom_fields (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            field_type VARCHAR(20) NOT NULL DEFAULT 'text',
+            options TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+        if is_sqlite()
+        else """
+        CREATE TABLE IF NOT EXISTS custom_fields (
+            id SERIAL PRIMARY KEY,
+            key VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            field_type VARCHAR(20) NOT NULL DEFAULT 'text',
+            options JSON,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    await _safe_execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS ix_custom_fields_key ON custom_fields (key)")
+    await _safe_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS spool_custom_field_values (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            spool_id INTEGER NOT NULL REFERENCES spool(id) ON DELETE CASCADE,
+            field_id INTEGER NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+            value VARCHAR(255)
+        )
+        """
+        if is_sqlite()
+        else """
+        CREATE TABLE IF NOT EXISTS spool_custom_field_values (
+            id SERIAL PRIMARY KEY,
+            spool_id INTEGER NOT NULL REFERENCES spool(id) ON DELETE CASCADE,
+            field_id INTEGER NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+            value VARCHAR(255)
+        )
+        """,
+    )
+    await _safe_execute(
+        conn,
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_spool_custom_field ON spool_custom_field_values (spool_id, field_id)",
+    )
+    await _safe_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS ix_spool_custom_field_values_field_id ON spool_custom_field_values (field_id)",
+    )
+    # Self-heal orphaned values. SQLite does not enforce foreign keys unless
+    # PRAGMA foreign_keys is on (it is not, app-wide), so a value written while
+    # its definition was being deleted survives the cascade and would sit in the
+    # table forever — invisible to the API but counted by any raw query.
+    await _safe_execute(
+        conn,
+        "DELETE FROM spool_custom_field_values "
+        "WHERE field_id NOT IN (SELECT id FROM custom_fields) "
+        "   OR spool_id NOT IN (SELECT id FROM spool)",
+    )
+
     # Migration: Add on_ai_failure_detection column to notification_providers (#1794).
     # Splits Obico AI failure detection out of the multiplexed on_printer_error
     # event so users can subscribe to spaghetti alerts independently of HMS

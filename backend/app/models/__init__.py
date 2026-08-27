@@ -4,6 +4,7 @@ from backend.app.models.api_key import APIKey
 from backend.app.models.archive import PrintArchive
 from backend.app.models.auth_ephemeral import AuthEphemeralToken, AuthRateLimitEvent
 from backend.app.models.color_catalog import ColorCatalogEntry
+from backend.app.models.custom_field import CustomField
 from backend.app.models.filament import Filament
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.group import Group, user_groups
@@ -34,6 +35,7 @@ from backend.app.models.sponsor_toast_state import SponsorToastState
 from backend.app.models.spool import Spool
 from backend.app.models.spool_assignment import SpoolAssignment
 from backend.app.models.spool_catalog import SpoolCatalogEntry
+from backend.app.models.spool_custom_field_value import SpoolCustomFieldValue
 from backend.app.models.spool_filament_preset import SpoolFilamentPreset, SpoolmanFilamentPreset
 from backend.app.models.spool_k_profile import SpoolKProfile
 from backend.app.models.spool_usage_history import SpoolUsageHistory
@@ -70,6 +72,8 @@ __all__ = [
     "LibraryFile",
     "FileVariantGroup",
     "Location",
+    "CustomField",
+    "SpoolCustomFieldValue",
     "User",
     "Group",
     "user_groups",

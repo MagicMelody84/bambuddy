@@ -1,0 +1,493 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { ListPlus, Plus, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { api, type CustomFieldDef } from '../api/client';
+import { Button } from './Button';
+import { ConfirmModal } from './ConfirmModal';
+import { useToast } from '../contexts/ToastContext';
+import { inventoryCustomFieldsQueryKey } from '../utils/inventoryQueries';
+
+interface CustomFieldsModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+// Mirrors custom_field_service.SUPPORTED_FIELD_TYPES, which in turn mirrors
+// Spoolman's own extra-field types. `choice` is the only one with options.
+const FIELD_TYPES = [
+  'text',
+  'integer',
+  'integer_range',
+  'float',
+  'float_range',
+  'datetime',
+  'boolean',
+  'choice',
+] as const;
+type FieldType = (typeof FIELD_TYPES)[number];
+
+/**
+ * Same rule as custom_field_service.slugify_key on the backend — lowercase
+ * ASCII, everything else collapsed to underscores. Kept in step with it so the
+ * preview shown while typing is what actually gets stored. A name with no latin
+ * characters slugs to '', and the field is then left for the user to fill in.
+ */
+function slugifyKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 50)
+    .replace(/_+$/g, '');
+}
+
+/**
+ * CRUD for user-defined spool fields. Same shape as LocationsModal — list plus
+ * an inner editor — with an option editor on top, since a select field is only
+ * useful once it has values to choose from.
+ */
+export function CustomFieldsModal({ open, onClose }: CustomFieldsModalProps) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState<CustomFieldDef | null>(null);
+  const [name, setName] = useState('');
+  const [fieldType, setFieldType] = useState<FieldType>('text');
+  const [key, setKey] = useState('');
+  // Once the user edits the key it stops following the name, so a deliberate
+  // key is not overwritten by the next keystroke in the name field.
+  const [keyTouched, setKeyTouched] = useState(false);
+  const [options, setOptions] = useState<string[]>([]);
+  const [optionDraft, setOptionDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<CustomFieldDef | null>(null);
+
+  const { data: fields = [], isLoading } = useQuery({
+    queryKey: inventoryCustomFieldsQueryKey,
+    queryFn: api.getCustomFields,
+    enabled: open,
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: inventoryCustomFieldsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ['inventory-spools'] });
+    queryClient.invalidateQueries({ queryKey: ['spoolman-inventory-spools'] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error(t('customFields.nameRequired'));
+      if (fieldType === 'choice' && options.length === 0) throw new Error(t('customFields.optionsRequired'));
+      // Options are only sent for select — the backend rejects them on every
+      // other type rather than storing something the form never shows.
+      const payload = { name: trimmed, field_type: fieldType, options: fieldType === 'choice' ? options : [] };
+      if (editing) {
+        // The key is fixed after creation — it links the stored values, the
+        // Spoolman entries and any backup — so it is never sent on an update.
+        return api.updateCustomField(editing.id, payload);
+      }
+      const trimmedKey = key.trim();
+      return api.createCustomField(trimmedKey ? { ...payload, key: trimmedKey } : payload);
+    },
+    onSuccess: () => {
+      showToast(t(editing ? 'customFields.updated' : 'customFields.created'), 'success');
+      invalidate();
+      setEditorOpen(false);
+      setEditing(null);
+      setName('');
+      setFieldType('text');
+      setKey('');
+      setKeyTouched(false);
+      setOptions([]);
+      setOptionDraft('');
+    },
+    onError: (err: Error) => {
+      showToast(err.message || t('customFields.saveFailed'), 'error');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.deleteCustomField(id),
+    onSuccess: () => {
+      showToast(t('customFields.deleted'), 'success');
+      setDeleteTarget(null);
+      invalidate();
+    },
+    onError: (err: Error) => {
+      showToast(err.message || t('customFields.deleteFailed'), 'error');
+    },
+  });
+
+  const openCreate = () => {
+    setEditing(null);
+    setName('');
+    setFieldType('text');
+    setKey('');
+    setKeyTouched(false);
+    setOptions([]);
+    setOptionDraft('');
+    setEditorOpen(true);
+  };
+
+  const openEdit = (field: CustomFieldDef) => {
+    setEditing(field);
+    setName(field.name);
+    setKey(field.key);
+    setKeyTouched(true);
+    setFieldType(FIELD_TYPES.includes(field.field_type as FieldType) ? (field.field_type as FieldType) : 'text');
+    setOptions([...field.options]);
+    setOptionDraft('');
+    setEditorOpen(true);
+  };
+
+  const closeEditor = useCallback(() => {
+    if (saveMutation.isPending) return;
+    setEditorOpen(false);
+    setEditing(null);
+    setName('');
+    setFieldType('text');
+    setKey('');
+    setKeyTouched(false);
+    setOptions([]);
+    setOptionDraft('');
+  }, [saveMutation.isPending]);
+
+  // Esc closes the inner editor first, then the outer modal — but never while
+  // a save or delete is in flight (mirrors LocationsModal).
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (saveMutation.isPending || deleteMutation.isPending) return;
+      if (editorOpen) {
+        closeEditor();
+      } else if (!deleteTarget) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, editorOpen, deleteTarget, saveMutation.isPending, deleteMutation.isPending, closeEditor, onClose]);
+
+  // A field that no spool uses yet can still be retyped; once values exist the
+  // backend refuses, so the control is disabled rather than failing on save.
+  const typeLocked = Boolean(editing && editing.value_count > 0);
+
+  const addOption = () => {
+    const trimmed = optionDraft.trim();
+    if (!trimmed) return;
+    if (options.includes(trimmed)) {
+      showToast(t('customFields.optionDuplicate'), 'info');
+      setOptionDraft('');
+      return;
+    }
+    setOptions((prev) => [...prev, trimmed]);
+    setOptionDraft('');
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate();
+  };
+
+  if (!open) return null;
+
+  const modalTitleId = 'custom-fields-modal-title';
+  const editorTitleId = 'custom-field-editor-title';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={() => {
+          if (saveMutation.isPending || deleteMutation.isPending) return;
+          onClose();
+        }}
+      />
+      <div
+        className="relative w-full max-w-4xl mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={modalTitleId}
+      >
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-bambu-dark-tertiary">
+          <div>
+            <h2 id={modalTitleId} className="text-lg font-semibold text-white flex items-center gap-2">
+              <ListPlus className="w-5 h-5 text-bambu-green" />
+              {t('customFields.title')}
+            </h2>
+            <p className="text-bambu-gray text-sm mt-0.5">{t('customFields.subtitle')}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4" />
+              {t('customFields.add')}
+            </Button>
+            <button
+              type="button"
+              className="p-1.5 text-bambu-gray hover:text-white rounded"
+              onClick={onClose}
+              aria-label={t('common.close')}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16 text-bambu-gray">
+              <Loader2 className="w-6 h-6 animate-spin mr-2" />
+              {t('common.loading')}
+            </div>
+          ) : fields.length === 0 ? (
+            <div className="py-16 text-center text-bambu-gray">{t('customFields.empty')}</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-bambu-dark-tertiary text-left text-bambu-gray">
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.name')}</th>
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.key')}</th>
+                  <th className="px-3 py-3 font-medium whitespace-nowrap">{t('customFields.type')}</th>
+                  {/* Auto layout rather than table-fixed: percentage columns
+                      cut "Kunde / Auftraggeber" down to "Kunde / Auftra…"
+                      while this column sat empty beside it. Name, key and type
+                      now take the width their content needs, and w-full +
+                      max-w-0 on the cells below makes Options the one that
+                      soaks up what is left and ellipsises. */}
+                  <th className="px-3 py-3 font-medium w-full">{t('customFields.options')}</th>
+                  <th className="px-3 py-3 font-medium text-right whitespace-nowrap">{t('customFields.spools')}</th>
+                  <th className="px-3 py-3 font-medium text-right whitespace-nowrap">{t('common.actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fields.map((field) => (
+                  <tr key={field.id} className="border-b border-bambu-dark-tertiary/60 hover:bg-bambu-dark-tertiary/30">
+                    {/* Capped so a 100-character name cannot push the table
+                        wider than the dialog; the title shows it in full. */}
+                    <td className="px-3 py-3 text-white font-medium max-w-[16rem] truncate" title={field.name}>
+                      {field.name}
+                    </td>
+                    {/* Shown because this is what an API call addresses the
+                        value by — the name is only a display label. */}
+                    <td
+                      className="px-3 py-3 text-bambu-gray font-mono text-xs max-w-[14rem] truncate"
+                      title={field.key}
+                    >
+                      {field.key}
+                    </td>
+                    <td className="px-3 py-3 text-bambu-gray whitespace-nowrap">
+                      {t(`customFields.types.${field.field_type}`)}
+                    </td>
+                    <td
+                      className="px-3 py-3 text-bambu-gray w-full max-w-0 truncate"
+                      title={field.options.join(', ')}
+                    >
+                      {field.options.join(', ')}
+                    </td>
+                    <td className="px-3 py-3 text-right text-bambu-gray whitespace-nowrap">{field.value_count}</td>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          className="p-1.5 text-bambu-gray hover:text-bambu-green rounded"
+                          onClick={() => openEdit(field)}
+                          title={t('common.edit')}
+                          aria-label={t('customFields.editAria', {
+                            name: field.name,
+                            defaultValue: `Edit ${field.name}`,
+                          })}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-1.5 text-bambu-gray hover:text-red-600 dark:hover:text-red-400 rounded"
+                          onClick={() => setDeleteTarget(field)}
+                          title={t('common.delete')}
+                          aria-label={t('customFields.deleteAria', {
+                            name: field.name,
+                            defaultValue: `Delete ${field.name}`,
+                          })}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {editorOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={closeEditor} />
+          <div
+            className="relative w-full max-w-md mx-4 bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-xl p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={editorTitleId}
+          >
+            <h3 id={editorTitleId} className="text-lg font-semibold text-white mb-4">
+              {editing ? t('customFields.edit') : t('customFields.add')}
+            </h3>
+            <form onSubmit={handleSave}>
+              <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-name">
+                {t('customFields.name')}
+              </label>
+              <input
+                id="custom-field-name"
+                type="text"
+                maxLength={100}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green mb-4"
+                placeholder={t('customFields.namePlaceholder')}
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!keyTouched) setKey(slugifyKey(e.target.value));
+                }}
+                autoFocus
+              />
+
+              <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-key">
+                {t('customFields.key')}
+              </label>
+              <input
+                id="custom-field-key"
+                type="text"
+                maxLength={50}
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm font-mono focus:outline-none focus:border-bambu-green disabled:opacity-50"
+                placeholder={t('customFields.keyPlaceholder')}
+                value={key}
+                // Fixed after creation: it links the stored values, the Spoolman
+                // entries and any backup, so the editor only ever shows it.
+                disabled={Boolean(editing)}
+                onChange={(e) => {
+                  setKeyTouched(true);
+                  setKey(e.target.value);
+                }}
+              />
+              <p className="text-xs text-bambu-gray mb-4 mt-1">
+                {editing ? t('customFields.keyLocked') : t('customFields.keyHint')}
+              </p>
+
+              <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-type">
+                {t('customFields.type')}
+              </label>
+              <select
+                id="custom-field-type"
+                className="w-full px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green disabled:opacity-50"
+                value={fieldType}
+                // Locked once values exist: each one was parsed against the old
+                // type, and reinterpreting them wholesale isn't safe. The
+                // backend enforces this too.
+                disabled={typeLocked}
+                onChange={(e) => setFieldType(e.target.value as FieldType)}
+              >
+                {FIELD_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`customFields.types.${type}`)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-bambu-gray mb-4 mt-1">
+                {typeLocked ? t('customFields.typeLocked') : t('customFields.typeHint')}
+              </p>
+
+              {fieldType === 'choice' && (
+                <>
+              <label className="block text-sm font-medium text-bambu-gray mb-1" htmlFor="custom-field-option">
+                {t('customFields.options')}
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  id="custom-field-option"
+                  type="text"
+                  maxLength={100}
+                  className="flex-1 px-3 py-2 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-sm focus:outline-none focus:border-bambu-green"
+                  placeholder={t('customFields.optionPlaceholder')}
+                  value={optionDraft}
+                  onChange={(e) => setOptionDraft(e.target.value)}
+                  // Enter adds an option instead of submitting the form — the
+                  // form's submit button is the only way to save.
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addOption();
+                    }
+                  }}
+                />
+                <Button type="button" variant="secondary" onClick={addOption} disabled={!optionDraft.trim()}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4 min-h-[2rem]">
+                {options.length === 0 ? (
+                  <span className="text-xs text-bambu-gray">{t('customFields.optionsRequired')}</span>
+                ) : (
+                  options.map((option) => (
+                    <span
+                      key={option}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-bambu-dark border border-bambu-dark-tertiary rounded-lg text-white text-xs"
+                    >
+                      {option}
+                      <button
+                        type="button"
+                        className="text-bambu-gray hover:text-red-600 dark:hover:text-red-400"
+                        onClick={() => setOptions((prev) => prev.filter((o) => o !== option))}
+                        aria-label={t('customFields.removeOptionAria', {
+                          option,
+                          defaultValue: `Remove ${option}`,
+                        })}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={closeEditor}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saveMutation.isPending || !name.trim() || (fieldType === 'choice' && options.length === 0)}
+                >
+                  {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {t('common.save')}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title={t('customFields.confirmDelete', { name: deleteTarget.name })}
+          message={
+            deleteTarget.value_count > 0
+              ? t('customFields.confirmDeleteMessageInUse', { count: deleteTarget.value_count })
+              : t('customFields.confirmDeleteMessage')
+          }
+          confirmText={t('common.delete')}
+          variant="danger"
+          isLoading={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
+  );
+}

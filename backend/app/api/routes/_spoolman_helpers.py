@@ -17,6 +17,13 @@ from backend.app.api.routes._url_safety import assert_safe_lan_service_url
 
 logger = logging.getLogger(__name__)
 
+# Prefix under which user-defined custom fields are stored in a Spoolman
+# spool's extra dict. Deliberately duplicated from
+# custom_field_service.SPOOLMAN_EXTRA_PREFIX rather than imported: that module
+# pulls in the ORM, and this one is kept importable without the backend stack
+# (see module docstring). A unit test pins the two values together.
+SPOOLMAN_EXTRA_PREFIX = "bambu_cf_"
+
 
 class MappedSpoolFields(TypedDict):
     """Full shape of the dict returned by _map_spoolman_spool (InventorySpool-compatible)."""
@@ -55,6 +62,7 @@ class MappedSpoolFields(TypedDict):
     storage_location: str | None
     location_id: int | None
     k_profiles: list[Any]
+    custom_fields: dict[str, str | None]
 
 
 class NormalizedVendorRef(TypedDict):
@@ -154,6 +162,35 @@ def _extract_extra_str(extra: dict, key: str) -> str:
         # Tolerate bare-string values written without JSON encoding.
         return raw
     return decoded if isinstance(decoded, str) else ""
+
+
+def _extract_custom_field_value(raw: object) -> str | None:
+    """Decode one custom-field entry from a Spoolman extra dict.
+
+    Extra values are JSON text typed to the field, so an integer arrives as
+    ``"5"``, a boolean as ``"true"`` and a range as ``"[1,5]"``. Everything is
+    flattened back to the canonical string Bambuddy stores (ranges as
+    ``"min,max"``). Anything unexpected is stringified rather than raised on —
+    one odd entry written by another tool must not break the inventory list.
+    """
+    if raw is None:
+        return None
+    decoded: object = raw
+    if isinstance(raw, str):
+        try:
+            decoded = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            # Tolerate a bare string written without JSON encoding.
+            return raw or None
+    if decoded is None:
+        return None
+    if isinstance(decoded, bool):
+        return "true" if decoded else "false"
+    if isinstance(decoded, (int, float)):
+        return str(decoded)
+    if isinstance(decoded, list):
+        return ",".join(str(part) for part in decoded) or None
+    return str(decoded) or None
 
 
 def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
@@ -263,6 +300,19 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
     nozzle_temp_raw = filament.get("settings_extruder_temp")
     nozzle_temp_min: int | None = _safe_int(nozzle_temp_raw, 0) or None
 
+    # User-defined custom fields live in extra under the bambu_cf_ prefix, same
+    # JSON-encoded-string convention as bambu_color_name. The definitions stay
+    # local to Bambuddy; keys Spoolman carries for fields that no longer exist
+    # are handed through unchanged and simply ignored by the UI.
+    custom_fields: dict[str, str | None] = {}
+    for extra_key in extra:
+        if not extra_key.startswith(SPOOLMAN_EXTRA_PREFIX):
+            continue
+        field_key = extra_key[len(SPOOLMAN_EXTRA_PREFIX) :]
+        if not field_key:
+            continue
+        custom_fields[field_key] = _extract_custom_field_value(extra.get(extra_key))
+
     return {
         "id": spool_id,
         "material": material,
@@ -308,4 +358,5 @@ def _map_spoolman_spool(spool: dict) -> MappedSpoolFields:
         "storage_location": spool.get("location") or None,
         "location_id": None,
         "k_profiles": [],
+        "custom_fields": custom_fields,
     }

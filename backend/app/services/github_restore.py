@@ -45,15 +45,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.database import async_session
 from backend.app.models.archive import PrintArchive
+from backend.app.models.custom_field import CustomField
 from backend.app.models.github_backup import GitHubBackupConfig, GitHubBackupLog
 from backend.app.models.printer import Printer
 from backend.app.models.project import Project
 from backend.app.models.settings import Settings
 from backend.app.models.spool import Spool
+from backend.app.models.spool_catalog import SpoolCatalogEntry
 from backend.app.models.spool_usage_history import SpoolUsageHistory
 from backend.app.models.user import User
 from backend.app.schemas.github_backup import RestoreCategory
+from backend.app.schemas.spool import normalize_effect_type, normalize_extra_colors
+from backend.app.services.custom_field_service import (
+    MAX_SORT_ORDER,
+    apply_values,
+    get_definitions,
+    normalize_field_key,
+    normalize_field_name,
+    normalize_field_type,
+    normalize_options,
+)
 from backend.app.services.git_providers.factory import get_provider_backend
+from backend.app.services.location_service import resolve_location_by_name
 from backend.app.services.printer_manager import printer_manager
 
 logger = logging.getLogger(__name__)
@@ -61,7 +74,10 @@ logger = logging.getLogger(__name__)
 METADATA_PATH = "backup_metadata.json"
 SETTINGS_PATH = "settings/app_settings.json"
 SPOOLS_PATH = "spools/inventory.json"
+SPOOL_CATALOG_PATH = "spools/spool_catalog.json"
 SPOOL_USAGE_PATH = "spools/usage_history.json"
+LOCATIONS_PATH = "spools/locations.json"
+CUSTOM_FIELDS_PATH = "spools/custom_fields.json"
 ARCHIVES_PATH = "archives/print_history.json"
 
 # kprofiles/{printer_serial}/{nozzle_diameter}.json
@@ -145,6 +161,58 @@ _PROTECTED_SETTING_PREFIXES = ("ldap_",)
 # the backup was written by a newer version, so accept it rather than dropping
 # data, but keep the list for validation messages.
 _KNOWN_NOZZLES = {"0.2", "0.4", "0.6", "0.8"}
+
+
+def _coerce_int(value, *, lo: int | None = None, hi: int | None = None) -> int | None:
+    """Accept only a real int in range; anything else restores as unset.
+
+    A backup is data from another machine and possibly another version, so a
+    value that would not survive the API's own validation is dropped rather
+    than written straight into the column.
+    """
+    if not isinstance(value, int) or isinstance(value, bool):
+        return None
+    if lo is not None and value < lo:
+        return None
+    if hi is not None and value > hi:
+        return None
+    return value
+
+
+def _coerce_float(value, default: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    if value != value or value in (float("inf"), float("-inf")):
+        return default
+    return float(value)
+
+
+def _coerce_str(value, max_length: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    return trimmed[:max_length] or None
+
+
+def _safe_normalize(normalizer, value):
+    """Run one of the spool schema's normalisers, dropping what it rejects."""
+    if value is None:
+        return None
+    try:
+        return normalizer(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _catalog_id_for(reference, catalog_by_key: dict[tuple[str, int], int]) -> int | None:
+    """Resolve a backed-up ``{name, weight}`` catalog reference to a local id."""
+    if not isinstance(reference, dict):
+        return None
+    name = reference.get("name")
+    weight = reference.get("weight")
+    if not isinstance(name, str) or not isinstance(weight, int):
+        return None
+    return catalog_by_key.get((name.strip().lower(), weight))
 
 
 def _parse_dt(value) -> datetime | None:
@@ -451,7 +519,14 @@ class GitHubRestoreService:
         if category == RestoreCategory.SETTINGS:
             return [p for p in (SETTINGS_PATH,) if p in available]
         if category == RestoreCategory.SPOOLS:
-            return [p for p in (SPOOLS_PATH, SPOOL_USAGE_PATH) if p in available]
+            # The two catalogs ride along with the inventory: spools reference
+            # a location by name and custom values by field key, so both have to
+            # be fetched for the same category or the references dangle.
+            return [
+                p
+                for p in (SPOOLS_PATH, SPOOL_USAGE_PATH, LOCATIONS_PATH, CUSTOM_FIELDS_PATH, SPOOL_CATALOG_PATH)
+                if p in available
+            ]
         if category == RestoreCategory.ARCHIVES:
             return [p for p in (ARCHIVES_PATH,) if p in available]
         if category == RestoreCategory.KPROFILES:
@@ -944,6 +1019,9 @@ class GitHubRestoreService:
                 overwrite,
                 tally,
                 archive_id_map,
+                payload.get(LOCATIONS_PATH),
+                payload.get(CUSTOM_FIELDS_PATH),
+                payload.get(SPOOL_CATALOG_PATH),
             )
             await db.commit()
             results[RestoreCategory.SPOOLS.value] = tally
@@ -1273,7 +1351,18 @@ class GitHubRestoreService:
         overwrite: bool,
         tally: _CategoryTally,
         archive_id_map: dict[int, int],
+        locations_payload=None,
+        custom_fields_payload=None,
+        spool_catalog_payload=None,
     ) -> None:
+        # Both catalogs have to exist before the spools that reference them, and
+        # they restore even when the backup has no spools at all — a fresh
+        # install can still get its locations and field definitions back.
+        await self._restore_locations(db, locations_payload, tally)
+        definitions = await self._restore_custom_field_defs(db, custom_fields_payload, tally)
+        definitions_by_key = {d.key: d for d in definitions}
+        catalog_by_key = await self._restore_spool_catalog(db, spool_catalog_payload)
+
         spools = inventory.get("spools") if isinstance(inventory, dict) else None
         if not isinstance(spools, list):
             tally.note("noData", "No data of this kind in this backup")
@@ -1311,7 +1400,33 @@ class GitHubRestoreService:
                 "data_origin": entry.get("data_origin"),
                 "tag_type": entry.get("tag_type"),
                 "archived_at": _parse_dt(entry.get("archived_at")),
+                "weight_used_baseline": _coerce_float(entry.get("weight_used_baseline"), 0.0),
+                "last_used": _parse_dt(entry.get("last_used")),
+                "encode_time": _parse_dt(entry.get("encode_time")),
+                "last_scale_weight": _coerce_int(entry.get("last_scale_weight")),
+                "last_weighed_at": _parse_dt(entry.get("last_weighed_at")),
+                "added_full": entry.get("added_full") if isinstance(entry.get("added_full"), bool) else None,
+                "category": _coerce_str(entry.get("category"), 50),
+                "low_stock_threshold_pct": _coerce_int(entry.get("low_stock_threshold_pct"), lo=1, hi=99),
+                # Re-validated rather than copied: a backup can predate the
+                # normalisation these went through (#1154), and a malformed
+                # value here would make every later edit of that spool 422.
+                "extra_colors": _safe_normalize(normalize_extra_colors, entry.get("extra_colors")),
+                "effect_type": _safe_normalize(normalize_effect_type, entry.get("effect_type")),
+                "core_weight_catalog_id": _catalog_id_for(entry.get("core_weight_catalog"), catalog_by_key),
             }
+
+            # The backup carries the location by name; map it back onto this
+            # install's catalog (creating the row if the catalog restore did
+            # not already), and keep both columns in step the way the API does.
+            raw_location = entry.get("storage_location")
+            if isinstance(raw_location, str) and raw_location.strip():
+                location = await resolve_location_by_name(db, raw_location.strip())
+                fields["storage_location"] = location.name if location else raw_location.strip()
+                fields["location_id"] = location.id if location else None
+            else:
+                fields["storage_location"] = None
+                fields["location_id"] = None
 
             if existing is not None:
                 if old_id is not None:
@@ -1322,6 +1437,7 @@ class GitHubRestoreService:
                 tags_kept += await self._guard_tag_overwrite(db, existing, fields, matched_on)
                 for key, value in fields.items():
                     setattr(existing, key, value)
+                await self._restore_spool_custom_values(db, existing, entry, definitions_by_key, tally)
                 tally.restored += 1
                 continue
 
@@ -1335,6 +1451,7 @@ class GitHubRestoreService:
                 row.created_at = created_at
             db.add(row)
             await db.flush()
+            await self._restore_spool_custom_values(db, row, entry, definitions_by_key, tally)
             if old_id is not None:
                 spool_id_map[old_id] = row.id
             tally.restored += 1
@@ -1348,6 +1465,176 @@ class GitHubRestoreService:
             )
 
         await self._restore_spool_usage(db, usage_payload, tally, spool_id_map, archive_id_map)
+
+    async def _restore_spool_catalog(self, db: AsyncSession, payload) -> dict[tuple[str, int], int]:
+        """Recreate hand-added spool-weight catalog entries, keyed by name+weight.
+
+        Returns the lookup a spool's ``core_weight_catalog`` reference resolves
+        against. Defaults are seeded on every install and are in the map too, so
+        a spool pointing at one of those matches without anything being created.
+        """
+        result = await db.execute(select(SpoolCatalogEntry))
+        by_key = {(e.name.strip().lower(), e.weight): e.id for e in result.scalars().all()}
+
+        entries = payload.get("entries") if isinstance(payload, dict) else None
+        if not isinstance(entries, list):
+            return by_key
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            weight = entry.get("weight")
+            if not isinstance(name, str) or not name.strip() or not isinstance(weight, int):
+                continue
+            key = (name.strip().lower(), weight)
+            if key in by_key:
+                continue
+            row = SpoolCatalogEntry(name=name.strip()[:200], weight=weight, is_default=False)
+            db.add(row)
+            await db.flush()
+            by_key[key] = row.id
+        return by_key
+
+    async def _restore_locations(self, db: AsyncSession, payload, tally: _CategoryTally) -> None:
+        """Recreate the storage-location catalog (#1004).
+
+        Matched by name, not by id — ids are local to an install. An existing
+        location keeps its own identifier; the backup only fills one in where
+        the local row has none, so a restore never overwrites a shelf tag that
+        was set up here after the backup was taken.
+        """
+        locations = payload.get("locations") if isinstance(payload, dict) else None
+        if not isinstance(locations, list):
+            return
+
+        created = 0
+        for entry in locations:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+            try:
+                location = await resolve_location_by_name(db, name.strip())
+            except ValueError:
+                continue
+            if location is None:
+                continue
+            identifier = entry.get("identifier")
+            if location.identifier is None and isinstance(identifier, str) and identifier.strip():
+                location.identifier = identifier.strip()
+            created += 1
+        await db.flush()
+        if created:
+            tally.note("locationsRestored", f"{created} storage location(s) restored", count=created)
+
+    async def _restore_custom_field_defs(self, db: AsyncSession, payload, tally: _CategoryTally) -> list:
+        """Recreate user-defined custom field definitions.
+
+        Matched by ``key``. A definition that already exists locally is left
+        exactly as it is: it may have been retyped or given different options
+        here since the backup, and its stored values were parsed against that
+        local definition. Overwriting it would leave those values describing
+        something else.
+        """
+        existing = {d.key: d for d in await get_definitions(db)}
+        fields = payload.get("fields") if isinstance(payload, dict) else None
+        if not isinstance(fields, list):
+            return list(existing.values())
+
+        created = 0
+        for entry in fields:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue
+            raw_key = entry.get("key")
+            try:
+                # The backed-up key goes through the same slug rules as a
+                # newly created one rather than being trusted as written. For a
+                # key this app produced that is a no-op (normalize_field_key is
+                # idempotent over its own output), but a hand-edited backup
+                # would otherwise put arbitrary text into a VARCHAR(50) column
+                # and, via spoolman_extra_key(), into a Spoolman API path.
+                key = normalize_field_key(raw_key if isinstance(raw_key, str) and raw_key.strip() else name)
+                # Held to the same limit the API enforces (String(100)) — a
+                # longer name is a hard error on PostgreSQL, not a truncation.
+                field_name = normalize_field_name(name)[:100]
+                field_type = normalize_field_type(entry.get("field_type"))
+                options = normalize_options(entry.get("options") or [], field_type)
+            except ValueError:
+                continue
+            if key in existing:
+                continue
+            sort_order = entry.get("sort_order")
+            definition = CustomField(
+                key=key,
+                name=field_name,
+                field_type=field_type,
+                options=options,
+                # Clamped to the API's own ceiling: an out-of-range value is a
+                # 500 on PostgreSQL's INTEGER rather than an odd sort position.
+                sort_order=sort_order if isinstance(sort_order, int) and 0 <= sort_order <= MAX_SORT_ORDER else 0,
+            )
+            db.add(definition)
+            existing[key] = definition
+            created += 1
+
+        await db.flush()
+        if created:
+            tally.note("customFieldsRestored", f"{created} custom field(s) restored", count=created)
+        return list(existing.values())
+
+    async def _restore_spool_custom_values(
+        self,
+        db: AsyncSession,
+        spool: Spool,
+        entry: dict,
+        definitions_by_key: dict,
+        tally: _CategoryTally,
+    ) -> None:
+        """Attach a backed-up spool's custom-field values.
+
+        Values whose definition does not exist here are dropped — the field was
+        deleted locally, or its definition failed to restore. Values the local
+        definition rejects (an option that is gone, a number that is no longer
+        a number after a retype) are dropped the same way, per field, so one bad
+        entry cannot cost the rest of the spool.
+        """
+        raw = entry.get("custom_fields")
+        if not isinstance(raw, dict) or not raw:
+            return
+
+        payload = {
+            key: value
+            for key, value in raw.items()
+            if key in definitions_by_key and (value is None or isinstance(value, str))
+        }
+        if not payload:
+            return
+
+        definitions = list(definitions_by_key.values())
+        try:
+            await apply_values(db, spool, payload, definitions)
+            return
+        except ValueError:
+            pass
+
+        # Retry field by field so the ones that still validate survive.
+        dropped = 0
+        for key, value in payload.items():
+            try:
+                await apply_values(db, spool, {key: value}, definitions)
+            except ValueError:
+                dropped += 1
+        if dropped:
+            tally.note(
+                "customFieldValuesDropped",
+                f"{dropped} custom field value(s) no longer fit their definition and were skipped",
+                count=dropped,
+            )
 
     async def _find_spool(self, db: AsyncSession, entry: dict) -> tuple[Spool | None, str | None]:
         """Match a backed-up spool to a local row, and say which key matched.
