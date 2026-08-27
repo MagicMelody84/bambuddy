@@ -7,7 +7,7 @@ from backend.app.services.location_service import normalize_location_name
 
 class LocationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    identifier: str | None = Field(default=None, max_length=100)
+    tag_uid: str | None = Field(default=None, max_length=100)
 
     @field_validator("name")
     @classmethod
@@ -17,7 +17,7 @@ class LocationCreate(BaseModel):
 
 class LocationUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    identifier: str | None = Field(default=None, max_length=100)
+    tag_uid: str | None = Field(default=None, max_length=100)
 
     @field_validator("name")
     @classmethod
@@ -30,7 +30,7 @@ class LocationUpdate(BaseModel):
 class LocationResponse(BaseModel):
     id: int
     name: str
-    identifier: str | None = None
+    tag_uid: str | None = None
     spool_count: int = 0
     created_at: datetime
     updated_at: datetime

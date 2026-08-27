@@ -1625,7 +1625,7 @@ export interface SpoolCatalogEntry {
 export interface StorageLocation {
   id: number;
   name: string;
-  identifier: string | null;
+  tag_uid: string | null;
   spool_count: number;
   created_at: string;
   updated_at: string;
@@ -6509,9 +6509,9 @@ export const api = {
     request<{ status: string }>('/inventory/catalog/reset', { method: 'POST' }),
   getLocations: () =>
     request<StorageLocation[]>('/inventory/locations'),
-  createLocation: (data: { name: string; identifier?: string | null }) =>
+  createLocation: (data: { name: string; tag_uid?: string | null }) =>
     request<StorageLocation>('/inventory/locations', { method: 'POST', body: JSON.stringify(data) }),
-  updateLocation: (id: number, data: { name?: string; identifier?: string | null }) =>
+  updateLocation: (id: number, data: { name?: string; tag_uid?: string | null }) =>
     request<StorageLocation>(`/inventory/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLocation: (id: number) =>
     request<{ status: string }>(`/inventory/locations/${id}`, { method: 'DELETE' }),

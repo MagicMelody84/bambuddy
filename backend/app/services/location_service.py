@@ -18,6 +18,7 @@ from backend.app.models.spool import Spool
 logger = logging.getLogger(__name__)
 
 DUPLICATE_LOCATION_NAME = "A location with this name already exists"
+DUPLICATE_LOCATION_TAG = "This NFC tag is already assigned to another location"
 
 # AMS residency markers, not storage locations. Bambuddy used to write the slot
 # a spool was loaded into -- "<printer> - AMS A1", the shape
@@ -73,6 +74,21 @@ async def get_location_by_name(db: AsyncSession, name: str) -> Location | None:
     key = location_name_key(name)
     result = await db.execute(select(Location).where(Location.name_key == key))
     return result.scalar_one_or_none()
+
+
+async def get_location_by_tag_uid(db: AsyncSession, tag_uid: str, *, exclude_id: int | None = None) -> Location | None:
+    """Find the location a normalized tag UID is assigned to.
+
+    One physical tag can only be on one shelf, and a scan resolves through
+    ``/locations/by-tag``, which answers with a single row — so a UID shared by
+    two locations makes that endpoint silently pick one. Callers use this to
+    refuse the second assignment instead.
+    """
+    query = select(Location).where(Location.tag_uid == tag_uid)
+    if exclude_id is not None:
+        query = query.where(Location.id != exclude_id)
+    result = await db.execute(query)
+    return result.scalars().first()
 
 
 async def get_locations_by_name_keys(db: AsyncSession, keys: set[str]) -> dict[str, Location]:

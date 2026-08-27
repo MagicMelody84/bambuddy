@@ -47,10 +47,12 @@ from backend.app.schemas.spool import (
 from backend.app.schemas.spool_usage import SpoolUsageHistoryResponse
 from backend.app.services.location_service import (
     DUPLICATE_LOCATION_NAME,
+    DUPLICATE_LOCATION_TAG,
     assign_location_name,
     count_internal_spools_at_location,
     get_location_by_id,
     get_location_by_name,
+    get_location_by_tag_uid,
     location_name_key,
     prepare_internal_spool_payload,
     rename_location as rename_location_record,
@@ -73,7 +75,7 @@ from backend.app.utils.filament_ids import (
 )
 from backend.app.utils.filament_types import is_material_name, nozzle_temp_range, printer_filament_type
 from backend.app.utils.natural_sort import natural_sort_key
-from backend.app.utils.tag_normalization import normalize_tag_uid, normalize_tray_uuid
+from backend.app.utils.tag_normalization import normalize_location_tag_uid, normalize_tag_uid, normalize_tray_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -634,7 +636,7 @@ def _location_to_response(location: Location, spool_count: int) -> LocationRespo
     return LocationResponse(
         id=location.id,
         name=location.name,
-        identifier=location.identifier,
+        tag_uid=location.tag_uid,
         spool_count=spool_count,
         created_at=location.created_at,
         updated_at=location.updated_at,
@@ -656,6 +658,40 @@ async def list_locations(
     return [_location_to_response(loc, counts.get(loc.id, 0)) for loc in locations]
 
 
+@router.get("/locations/by-tag", response_model=LocationResponse)
+async def get_location_by_tag(
+    tag_uid: str,
+    db: AsyncSession = Depends(get_db),
+    _: User | None = RequireAnyPermissionIfAuthEnabled(Permission.INVENTORY_READ, Permission.INVENTORY_UPDATE),
+):
+    """Find a storage location by its RFID/NFC ``tag_uid``.
+
+    Lets NFC scanning integrations (e.g. a SpoolBuddy shelf-tag scan) resolve
+    a location without listing the whole catalog. Returns 404 when nothing
+    matches.
+
+    Accepts ``inventory:read`` OR ``inventory:update`` — same rationale as
+    ``/spools/by-tag`` (#1663): a Manage-Inventory API key can read a
+    location back without widening the global ``INVENTORY_READ`` scope.
+    """
+    normalized = normalize_location_tag_uid(tag_uid) or None
+    if not normalized:
+        raise HTTPException(400, "Provide tag_uid")
+
+    result = await db.execute(select(Location).where(func.upper(Location.tag_uid) == normalized))
+    location = result.scalars().first()
+    if not location:
+        raise HTTPException(404, "Location not found")
+
+    # Use the internal DB count directly rather than _spool_counts_for_locations:
+    # in Spoolman mode that helper fetches every spool from the remote Spoolman
+    # API just to derive one location's count, which defeats the point of this
+    # endpoint (a fast per-scan lookup, called on every physical tag read) —
+    # see this route's own docstring.
+    count = await count_internal_spools_at_location(db, location.id)
+    return _location_to_response(location, count)
+
+
 @router.post("/locations", response_model=LocationResponse, status_code=201)
 async def create_location(
     data: LocationCreate,
@@ -666,14 +702,24 @@ async def create_location(
     existing = await get_location_by_name(db, data.name)
     if existing:
         raise HTTPException(status_code=409, detail=DUPLICATE_LOCATION_NAME)
-    location = Location(identifier=data.identifier)
+    tag_uid = normalize_location_tag_uid(data.tag_uid) or None
+    if tag_uid and await get_location_by_tag_uid(db, tag_uid):
+        raise HTTPException(status_code=409, detail=DUPLICATE_LOCATION_TAG)
+    location = Location(tag_uid=tag_uid)
     assign_location_name(location, data.name)
     db.add(location)
     try:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise HTTPException(status_code=409, detail=DUPLICATE_LOCATION_NAME) from exc
+        # Either name_key or tag_uid lost a race with a concurrent create.
+        # Which one is worth a query on this error path — telling someone their
+        # name is taken when the tag is what clashed sends them editing the
+        # wrong field.
+        detail = DUPLICATE_LOCATION_NAME
+        if tag_uid and not await get_location_by_name(db, data.name):
+            detail = DUPLICATE_LOCATION_TAG
+        raise HTTPException(status_code=409, detail=detail) from exc
     await db.refresh(location)
     await ws_manager.broadcast({"type": "inventory_changed"})
     return _location_to_response(location, 0)
@@ -692,8 +738,13 @@ async def update_location(
         raise HTTPException(status_code=404, detail="Location not found")
 
     old_name = location.name
-    if data.identifier is not None:
-        location.identifier = data.identifier or None
+    if "tag_uid" in data.model_fields_set:
+        tag_uid = normalize_location_tag_uid(data.tag_uid) or None
+        # Same one-tag-one-shelf rule as create. Excluding this row keeps
+        # re-writing a location's own tag (the scan-and-save flow) allowed.
+        if tag_uid and await get_location_by_tag_uid(db, tag_uid, exclude_id=location.id):
+            raise HTTPException(status_code=409, detail=DUPLICATE_LOCATION_TAG)
+        location.tag_uid = tag_uid
 
     if data.name is not None and data.name != old_name:
         try:
@@ -1175,13 +1226,23 @@ async def sync_from_filamentcolors(
 @router.get("/spools", response_model=list[SpoolResponse])
 async def list_spools(
     include_archived: bool = False,
+    location_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.INVENTORY_READ),
 ):
-    """List all spools, excluding archived by default."""
+    """List all spools, excluding archived by default.
+
+    ``location_id`` narrows the result to one storage location. Without it a
+    client that only wants the spools kept somewhere has to fetch the whole
+    inventory and filter locally — every spool of every other location sent
+    over the wire and parsed to be discarded, which is the difference between
+    a handful of rows and the entire catalog on a constrained client.
+    """
     query = select(Spool).options(selectinload(Spool.k_profiles))
     if not include_archived:
         query = query.where(Spool.archived_at.is_(None))
+    if location_id is not None:
+        query = query.where(Spool.location_id == location_id)
     query = query.order_by(Spool.material, Spool.brand, Spool.color_name)
     result = await db.execute(query)
     return list(result.scalars().all())
