@@ -1500,7 +1500,7 @@ class GitHubRestoreService:
         """Recreate the storage-location catalog (#1004).
 
         Matched by name, not by id — ids are local to an install. An existing
-        location keeps its own identifier; the backup only fills one in where
+        location keeps its own tag_uid; the backup only fills one in where
         the local row has none, so a restore never overwrites a shelf tag that
         was set up here after the backup was taken.
         """
@@ -1521,9 +1521,9 @@ class GitHubRestoreService:
                 continue
             if location is None:
                 continue
-            identifier = entry.get("identifier")
-            if location.identifier is None and isinstance(identifier, str) and identifier.strip():
-                location.identifier = identifier.strip()
+            tag_uid = entry.get("tag_uid")
+            if location.tag_uid is None and isinstance(tag_uid, str) and tag_uid.strip():
+                location.tag_uid = tag_uid.strip()
             created += 1
         await db.flush()
         if created:

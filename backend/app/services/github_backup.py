@@ -768,7 +768,7 @@ class GitHubBackupService:
 
         files["spools/locations.json"] = {
             "version": "1.0",
-            "locations": [{"name": loc.name, "identifier": loc.identifier} for loc in locations],
+            "locations": [{"name": loc.name, "tag_uid": loc.tag_uid} for loc in locations],
         }
 
     async def _collect_custom_fields(self, db: AsyncSession, files: dict):

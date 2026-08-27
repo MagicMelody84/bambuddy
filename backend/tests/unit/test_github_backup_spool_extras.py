@@ -49,7 +49,7 @@ async def maker(tmp_path):
 
 
 async def _seed(db):
-    loc = Location(name="Regal A", name_key="regal a", identifier="SHELF-A")
+    loc = Location(name="Regal A", name_key="regal a", tag_uid="SHELF-A")
     kunde = CustomField(key="kunde", name="Kunde", field_type="choice", options=["Acme", "Globex"])
     lagen = CustomField(key="lagen", name="Lagen", field_type="integer")
     db.add_all([loc, kunde, lagen])
@@ -83,7 +83,7 @@ async def test_backup_carries_location_name_and_custom_values(maker):
     assert "location_id" not in entry
     assert entry["custom_fields"] == {"kunde": "Acme", "lagen": "12"}
 
-    assert files["spools/locations.json"]["locations"] == [{"name": "Regal A", "identifier": "SHELF-A"}]
+    assert files["spools/locations.json"]["locations"] == [{"name": "Regal A", "tag_uid": "SHELF-A"}]
     keys = [f["key"] for f in files["spools/custom_fields.json"]["fields"]]
     assert sorted(keys) == ["kunde", "lagen"]
 
@@ -123,7 +123,7 @@ async def test_restore_into_an_empty_install_rebuilds_everything(maker, tmp_path
 
         loc = (await db.execute(select(Location))).scalars().one()
         assert loc.name == "Regal A"
-        assert loc.identifier == "SHELF-A"
+        assert loc.tag_uid == "SHELF-A"
 
         defs = (await db.execute(select(CustomField))).scalars().all()
         assert {d.key: d.field_type for d in defs} == {"kunde": "choice", "lagen": "integer"}
@@ -219,7 +219,7 @@ async def test_catalogs_survive_a_backup_with_no_spools_yet(maker, tmp_path):
         files = await _collect(db)
 
     assert "spools/inventory.json" not in files
-    assert files["spools/locations.json"]["locations"] == [{"name": "Trockenbox", "identifier": None}]
+    assert files["spools/locations.json"]["locations"] == [{"name": "Trockenbox", "tag_uid": None}]
 
     from backend.app.core.database import Base
 
